@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dev-server.*.log
+backend/.env
+.DS_Store
+
+.vercel

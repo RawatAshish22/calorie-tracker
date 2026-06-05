@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Sistum Tracker Logo</title>
+  <desc id="desc">A luminous S shaped nutrition tracker mark with a leaf, plate, and progress ring.</desc>
+  <defs>
+    <linearGradient id="ring" x1="42" y1="28" x2="216" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b7f34a"/>
+      <stop offset="0.45" stop-color="#3ee681"/>
+      <stop offset="1" stop-color="#4dd5c4"/>
+    </linearGradient>
+    <linearGradient id="core" x1="76" y1="60" x2="180" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff8d7"/>
+      <stop offset="0.42" stop-color="#b7f34a"/>
+      <stop offset="1" stop-color="#22d3b6"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.25 0 0 0 0 0.95 0 0 0 0 0.6 0 0 0 0.65 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#06100d"/>
+  <path d="M52 130c0-50.8 36.8-91.5 86-91.5 29.6 0 54 13.2 68.3 33.8" fill="none" stroke="url(#ring)" stroke-width="18" stroke-linecap="round" opacity="0.95" filter="url(#glow)"/>
+  <path d="M204 126c0 50.8-36.8 91.5-86 91.5-29.6 0-54-13.2-68.3-33.8" fill="none" stroke="url(#ring)" stroke-width="18" stroke-linecap="round" opacity="0.95" filter="url(#glow)"/>
+  <path d="M154.8 82.7c-18.9-13-55.1-9.5-59.7 15.9-6.5 35.8 72.4 26.8 65.4 63.7-5.5 28.7-52.7 31.5-76.3 12.1" fill="none" stroke="url(#core)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M171 61.5c22.9 1.9 37.5 17.7 40.8 41.9-24.8-1.1-40.5-16.4-40.8-41.9Z" fill="#3ee681"/>
+  <path d="M172.3 62.7c9.8 13.4 22.8 26 38 38.3" fill="none" stroke="#06100d" stroke-width="5" stroke-linecap="round" opacity="0.72"/>
+  <path d="M74 195.5c-19.9-4.4-32.3-19.3-34.4-40.3 21.9 2.4 35.6 17.1 34.4 40.3Z" fill="#f0b849"/>
+  <circle cx="128" cy="128" r="40" fill="#0d1a16" opacity="0.88"/>
+  <path d="M104 134c9.1 12.3 27.6 18.4 47.4 4.1" fill="none" stroke="#b7f34a" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="104" cy="112" r="7" fill="#fff8d7"/>
+  <circle cx="151" cy="112" r="7" fill="#fff8d7"/>
+</svg>

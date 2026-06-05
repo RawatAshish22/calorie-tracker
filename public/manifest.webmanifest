@@ -1,0 +1,20 @@
+{
+  "name": "Sistum Tracker : Calorie Tracking App",
+  "short_name": "Sistum",
+  "description": "Mobile-first calorie tracking, AI coaching, food logging, goals, and camera nutrition scans.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06100d",
+  "theme_color": "#06100d",
+  "categories": ["health", "fitness", "food"],
+  "icons": [
+    {
+      "src": "/sistum-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
