@@ -331,11 +331,11 @@ async function callCloudflare(prompt, maxTokens = 620) {
 
 async function callCloudflareVision(image) {
   const accountId = encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
-  const modelPath = (process.env.CLOUDFLARE_VISION_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct').replace(/^\/+/, '');
+  const visionModel = process.env.CLOUDFLARE_VISION_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct';
   const { mimeType, base64 } = splitDataUrl(image);
 
-  // llama-3.2-11b-vision-instruct uses OpenAI-compatible messages format with image_url
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelPath}`, {
+  // Use OpenAI-compatible endpoint which supports image_url in messages
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`, {
     method: 'POST',
     signal: aiTimeoutSignal(25000),
     headers: {
@@ -343,6 +343,7 @@ async function callCloudflareVision(image) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      model: visionModel,
       messages: [{
         role: 'user',
         content: [
@@ -355,10 +356,12 @@ async function callCloudflareVision(image) {
     }),
   });
   const data = await readJsonResponse(response);
-  const result = data?.result?.response || data?.result?.text || data?.result?.output || data?.result;
+  // OpenAI-compatible endpoint returns choices[].message.content
+  const result = data?.choices?.[0]?.message?.content || data?.result?.response || data?.result;
   if (!result) throw new Error('cloudflare vision returned an empty response');
   return result;
 }
+
 
 async function callOpenRouter(prompt, maxTokens = 620) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
