@@ -1598,8 +1598,15 @@ function CameraScan({ aiSettings, onResult, onToast }) {
       setScanResult(normalized);
       setStatus(data.cached ? 'Cached scan result' : 'Scan updated');
     } catch (error) {
-      setStatus('AI vision unavailable');
-      onToast(error.message);
+      const msg = error.message || '';
+      if (/quota|rate.limit|429|exceeded/i.test(msg)) {
+        setStatus('AI rate limit hit — retrying shortly');
+      } else if (/vision ai needs/i.test(msg)) {
+        setStatus('No vision provider configured');
+      } else {
+        setStatus('AI vision unavailable');
+      }
+      onToast(msg.length > 120 ? msg.slice(0, 117) + '...' : msg);
     } finally {
       busyRef.current = false;
     }

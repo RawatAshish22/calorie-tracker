@@ -42,6 +42,18 @@ const visionPrompt = [
 
 app.use(express.json({ limit: '7mb' }));
 
+// CORS for cross-origin deployment (Netlify frontend → Render backend)
+app.use((_request, response, next) => {
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (_request.method === 'OPTIONS') {
+    response.status(204).end();
+    return;
+  }
+  next();
+});
+
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true });
 });
@@ -166,8 +178,8 @@ app.post('/api/vision-nutrition', async (request, response) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Sistum Tracker backend listening at http://127.0.0.1:${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Sistum Tracker backend listening at http://0.0.0.0:${port}`);
 });
 
 function normalizeProvider(provider) {
@@ -200,7 +212,7 @@ function getCacheTtlMs() {
 function providerOrder(provider, mode) {
   if (provider !== 'auto') return [provider];
   if (mode === 'coach') return ['gemini', 'openrouter', 'cloudflare'];
-  return mode === 'vision' ? ['gemini', 'openrouter'] : ['cloudflare', 'gemini', 'openrouter'];
+  return mode === 'vision' ? ['gemini', 'cloudflare', 'openrouter'] : ['cloudflare', 'gemini', 'openrouter'];
 }
 
 async function callBestTextProvider(prompt, provider, mode) {
@@ -223,54 +235,81 @@ async function callBestVisionProvider(image, provider) {
   for (const candidate of providerOrder(provider, 'vision')) {
     try {
       if (candidate === 'gemini' && process.env.GEMINI_API_KEY) return await callGeminiVision(image);
+      if (candidate === 'cloudflare' && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) return await callCloudflareVision(image);
       if (candidate === 'openrouter' && process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL) return await callOpenRouterVision(image);
     } catch (error) {
       errors.push(`${candidate}: ${error.message}`);
     }
   }
-  throw new Error(errors.join(' | ') || 'Vision AI needs Gemini or a vision-capable OpenRouter model in backend/.env.');
+  throw new Error(errors.join(' | ') || 'Vision AI needs Gemini, Cloudflare, or a vision-capable OpenRouter model in backend/.env.');
 }
 
-async function callGemini(prompt, maxTokens = 620) {
-  const model = encodeURIComponent(process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite');
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-    method: 'POST',
-    signal: aiTimeoutSignal(),
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: maxTokens },
-    }),
+async function callGemini(prompt, maxTokens = 620, retries = 2) {
+  const model = encodeURIComponent(process.env.GEMINI_MODEL || 'gemini-2.0-flash');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`;
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: maxTokens },
   });
-  const data = await readJsonResponse(response);
-  return requireProviderText(data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join('\n'), 'gemini');
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: aiTimeoutSignal(),
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+
+    if (response.status === 429 && attempt < retries) {
+      const retryAfter = parseRetryAfter(response);
+      console.warn(`gemini rate-limited, retrying in ${retryAfter}ms (attempt ${attempt + 1}/${retries})`);
+      await sleep(retryAfter);
+      continue;
+    }
+
+    const data = await readJsonResponse(response);
+    return requireProviderText(data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join('\n'), 'gemini');
+  }
 }
 
-async function callGeminiVision(image) {
-  const model = encodeURIComponent(process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite');
+async function callGeminiVision(image, retries = 2) {
+  const model = encodeURIComponent(process.env.GEMINI_MODEL || 'gemini-2.0-flash');
   const { mimeType, base64 } = splitDataUrl(image);
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-    method: 'POST',
-    signal: aiTimeoutSignal(),
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: visionPrompt },
-          { inlineData: { mimeType, data: base64 } },
-        ],
-      }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 620 },
-    }),
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`;
+  const body = JSON.stringify({
+    contents: [{
+      role: 'user',
+      parts: [
+        { text: visionPrompt },
+        { inlineData: { mimeType, data: base64 } },
+      ],
+    }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 620 },
   });
-  const data = await readJsonResponse(response);
-  return requireProviderText(data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join('\n'), 'gemini vision');
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: aiTimeoutSignal(),
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+
+    if (response.status === 429 && attempt < retries) {
+      const retryAfter = parseRetryAfter(response);
+      console.warn(`gemini vision rate-limited, retrying in ${retryAfter}ms (attempt ${attempt + 1}/${retries})`);
+      await sleep(retryAfter);
+      continue;
+    }
+
+    const data = await readJsonResponse(response);
+    return requireProviderText(data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join('\n'), 'gemini vision');
+  }
 }
 
 async function callCloudflare(prompt, maxTokens = 620) {
   const accountId = encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
-  const modelPath = (process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.1-8b-instruct').replace(/^\/+/, '');
+  const modelPath = (process.env.CLOUDFLARE_TEXT_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.1-8b-instruct').replace(/^\/+/, '');
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelPath}`, {
     method: 'POST',
     signal: aiTimeoutSignal(),
@@ -287,6 +326,37 @@ async function callCloudflare(prompt, maxTokens = 620) {
   const data = await readJsonResponse(response);
   const result = data?.result?.response || data?.result?.text || data?.result?.output || data?.result;
   if (!result) throw new Error('cloudflare returned an empty response');
+  return result;
+}
+
+async function callCloudflareVision(image) {
+  const accountId = encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
+  const modelPath = (process.env.CLOUDFLARE_VISION_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct').replace(/^\/+/, '');
+  const { mimeType, base64 } = splitDataUrl(image);
+
+  // llama-3.2-11b-vision-instruct uses OpenAI-compatible messages format with image_url
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelPath}`, {
+    method: 'POST',
+    signal: aiTimeoutSignal(25000),
+    headers: {
+      Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: visionPrompt },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+        ],
+      }],
+      temperature: 0.1,
+      max_tokens: 620,
+    }),
+  });
+  const data = await readJsonResponse(response);
+  const result = data?.result?.response || data?.result?.text || data?.result?.output || data?.result;
+  if (!result) throw new Error('cloudflare vision returned an empty response');
   return result;
 }
 
@@ -356,9 +426,23 @@ function requireProviderText(value, provider) {
   return text;
 }
 
-function aiTimeoutSignal() {
-  const timeoutMs = Math.max(3000, Number(process.env.AI_TIMEOUT_MS || 9000));
+function aiTimeoutSignal(overrideMs) {
+  const timeoutMs = overrideMs || Math.max(3000, Number(process.env.AI_TIMEOUT_MS || 15000));
   return AbortSignal.timeout(timeoutMs);
+}
+
+function parseRetryAfter(response) {
+  const header = response.headers.get('retry-after');
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds > 0) return Math.min(seconds * 1000, 30000);
+  }
+  // Default: 5 seconds if no retry-after header
+  return 5000;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function normalizeAiNutrition(value, source) {

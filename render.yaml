@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: sistum-tracker-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: AI_PROVIDER
+        value: auto
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_TEXT_MODEL
+        value: "@cf/meta/llama-3.1-8b-instruct"
+      - key: CLOUDFLARE_VISION_MODEL
+        value: "@cf/meta/llama-3.2-11b-vision-instruct"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: "meta-llama/llama-3.2-11b-vision-instruct:free"
+      - key: CACHE_TTL_HOURS
+        value: 168
+      - key: VISION_SCAN_INTERVAL_MS
+        value: 4500
