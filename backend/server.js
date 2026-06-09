@@ -483,11 +483,38 @@ function parseJsonValue(value) {
   const cleaned = String(value || '').replace(/```json|```/gi, '').trim();
   try {
     return JSON.parse(cleaned);
-  } catch {
+  } catch (error) {
     const json = extractFirstJsonObject(cleaned);
-    if (json) return JSON.parse(json);
+    if (json) {
+      try { return JSON.parse(json); } catch (err2) {}
+    }
+    
+    // Robust fallback for missing commas/quotes (common LLM failure)
+    const extractNum = (regex) => {
+      const match = cleaned.match(regex);
+      return match ? Number(match[1]) : 0;
+    };
+    
+    const calories = extractNum(/['"]?calories['"]?\s*[:]\s*(\d+)/i);
+    const protein = extractNum(/['"]?protein['"]?\s*[:]\s*(\d+)/i);
+    const carbs = extractNum(/['"]?carbs['"]?\s*[:]\s*(\d+)/i);
+    const fat = extractNum(/['"]?fat['"]?\s*[:]\s*(\d+)/i);
+    
+    if (calories > 0 || protein > 0 || carbs > 0 || fat > 0) {
+      const foodMatch = cleaned.match(/['"]?foodName['"]?\s*[:]\s*['"]([^'"]+)['"]/i);
+      const qtyMatch = cleaned.match(/['"]?quantity['"]?\s*[:]\s*['"]([^'"]+)['"]/i);
+      return {
+        foodName: foodMatch ? foodMatch[1].trim() : 'Visible food',
+        quantity: qtyMatch ? qtyMatch[1].trim() : '1 serving',
+        calories, protein, carbs, fat,
+        fiber: extractNum(/['"]?fiber['"]?\s*[:]\s*(\d+)/i),
+        sugar: extractNum(/['"]?sugar['"]?\s*[:]\s*(\d+)/i),
+        sodium: extractNum(/['"]?sodium['"]?\s*[:]\s*(\d+)/i)
+      };
+    }
+
     const rawSnippet = cleaned.length > 60 ? cleaned.substring(0, 60) + '...' : cleaned;
-    throw new Error(`AI response was not JSON: ${rawSnippet}`);
+    throw new Error(`AI generated malformed JSON: ${error.message}. Output: ${rawSnippet}`);
   }
 }
 
