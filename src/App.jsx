@@ -489,7 +489,7 @@ function TrackerShell({
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
       <div className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]">
         <AppHeader user={currentUser} onLogout={onLogout} />
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-28 pt-4">
+        <main className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4">
           {activeTab === 'dashboard' && (
             <Dashboard
               user={currentUser}
@@ -877,19 +877,19 @@ function ProfileSetup({ user, onComplete, onLogout }) {
 
 function AppHeader({ user, onLogout }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-white/10 bg-ink/85 px-4 py-4 backdrop-blur-xl">
+    <header className="sticky top-0 z-20 bg-ink/80 px-4 py-4 backdrop-blur-2xl">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <LogoMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate text-xs uppercase text-limeFresh">Sistum Tracker</p>
-            <h1 className="truncate text-lg font-black text-white">Hello, {user.name}</h1>
+            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-limeFresh">Sistum Tracker</p>
+            <h1 className="truncate text-lg font-bold text-white">Hello, {user.name}</h1>
           </div>
         </div>
         <button
           type="button"
           onClick={onLogout}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white/[0.03] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white active:scale-95"
           aria-label="Logout"
         >
           <LogOut size={18} />
@@ -905,7 +905,7 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel animate-rise relative overflow-hidden rounded-[26px] border border-white/10 p-4">
+      <section className="hero-panel animate-rise relative overflow-hidden rounded-[32px] p-5">
         <div className="hero-lines absolute inset-0" />
         <div className="relative flex items-start justify-between gap-3">
           <div>
@@ -958,12 +958,12 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
 
       <WaterTracker totals={totals} goals={goals} onLogWater={onLogWater} />
 
-      <section className="glass-panel rounded-[22px] p-4">
+      <section className="rounded-[32px] bg-white/[0.02] p-5">
         <div className="flex items-center gap-2 text-limeFresh">
-          <Sparkles size={18} />
-          <h2 className="text-base font-bold text-white">Smart tip</h2>
+          <Sparkles size={16} />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-white">Smart tip</h2>
         </div>
-        <p className="mt-3 text-sm leading-6 text-zinc-300">{smartTip}</p>
+        <p className="mt-3 text-sm font-light leading-relaxed text-zinc-300">{smartTip}</p>
       </section>
 
       <MealLog date={todayKey()} items={items} onRemove={onRemove} />
@@ -980,23 +980,22 @@ function MacroSummary({ totals, goals }) {
   ];
 
   return (
-    <section className="glass-panel rounded-[22px] p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-bold">Macro engine</h2>
-        <Flame className="text-sun" size={18} />
+    <section className="rounded-[32px] bg-white/[0.02] p-5">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Daily Fuel</h2>
       </div>
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {rows.map((row) => {
           const progress = goalProgress(totals[row.key], goals[row.key]);
           return (
-            <div key={row.key} className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                <span className="font-semibold text-zinc-200">{row.label}</span>
-                <span className="text-zinc-400">
-                  {roundMetric(totals[row.key])}/{goals[row.key]} {row.unit}
+            <div key={row.key}>
+              <div className="mb-1.5 flex items-center justify-between text-sm">
+                <span className="font-medium text-white">{row.label}</span>
+                <span className="font-light text-zinc-500">
+                  <span className="text-white">{roundMetric(totals[row.key])}</span> / {goals[row.key]}{row.unit}
                 </span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-white/[0.08]">
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.04]">
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: row.color }} />
               </div>
             </div>
@@ -1010,30 +1009,24 @@ function MacroSummary({ totals, goals }) {
 function WaterTracker({ totals, goals, onLogWater }) {
   const progress = goalProgress(totals.water, goals.water);
   return (
-    <section className="glass-panel rounded-[22px] p-4">
+    <section className="rounded-[32px] bg-white/[0.02] p-5">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Droplet className="text-aqua" size={18} />
-          <h2 className="text-base font-bold">Hydration</h2>
-        </div>
-        <span className="text-sm font-bold text-zinc-400">
-          {roundMetric(totals.water || 0)}L / {goals.water}L
+        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Hydration</h2>
+        <span className="text-sm font-light text-zinc-500">
+          <span className="font-medium text-white">{roundMetric(totals.water || 0)}</span> / {goals.water}L
         </span>
       </div>
       <div className="flex items-center gap-4">
-        <div className="relative h-14 flex-1 overflow-hidden rounded-xl bg-white/[0.08]">
+        <div className="relative h-12 flex-1 overflow-hidden rounded-2xl bg-white/[0.04]">
           <div className="absolute bottom-0 left-0 top-0 bg-aqua transition-all duration-700" style={{ width: `${progress}%`, opacity: 0.8 }} />
-          <div className="absolute inset-0 grid place-items-center text-xs font-black text-white mix-blend-overlay">
-            {progress}% HYDRATED
-          </div>
         </div>
         <button
           type="button"
           onClick={() => onLogWater(0.25)}
-          className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-aqua text-ink shadow-[0_12px_32px_rgba(77,213,196,0.25)] transition hover:-translate-y-0.5 active:scale-95"
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-aqua/10 text-aqua transition hover:-translate-y-0.5 active:scale-95"
           aria-label="Add 250ml water"
         >
-          <Plus size={24} />
+          <Plus size={20} />
         </button>
       </div>
     </section>
@@ -1061,8 +1054,8 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel animate-rise overflow-hidden rounded-[26px] border border-white/10">
-        <div className="relative p-4">
+      <section className="hero-panel animate-rise overflow-hidden rounded-[32px]">
+        <div className="relative p-5">
           <div className="hero-lines absolute inset-0" />
           <div className="relative flex items-center gap-3">
             <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-limeFresh">
@@ -1078,7 +1071,7 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-base text-white outline-none transition focus:border-limeFresh"
+            className="min-w-0 flex-1 rounded-2xl border-none bg-white/[0.05] px-4 text-base text-white outline-none transition focus:bg-white/[0.08]"
             placeholder="Food and quantity"
           />
           <button
@@ -1140,7 +1133,7 @@ function TodayTray({ items, goals, totals, onRemove }) {
   const progress = goalProgress(totals.calories, goals.calories);
 
   return (
-    <div className="rounded-[20px] border border-white/10 bg-black/25 p-3">
+    <div className="rounded-[24px] bg-white/[0.03] p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ShoppingBasket className="text-limeFresh" size={18} />
@@ -1754,13 +1747,13 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast }) {
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition focus:border-limeFresh"
-            placeholder="Ask AI Coaching..."
+            className="min-w-0 flex-1 rounded-2xl border-none bg-white/[0.05] px-4 text-sm text-white outline-none transition focus:bg-white/[0.08]"
+            placeholder="Ask AI Coach..."
           />
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-limeFresh text-ink disabled:opacity-60"
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-limeFresh text-ink disabled:opacity-60"
             aria-label="Send"
           >
             {loading ? <RefreshCw className="animate-spin" size={19} /> : <Send size={19} />}
@@ -2257,9 +2250,9 @@ function FoodShape({ visual }) {
 
 function HeroChip({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-      <p className="text-[11px] text-zinc-500">{label}</p>
-      <p className="mt-1 truncate text-sm font-black text-white">{value}</p>
+    <div className="flex flex-col items-center justify-center rounded-2xl bg-white/[0.03] py-3">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{label}</span>
+      <span className="mt-1 text-sm font-medium text-white">{value}</span>
     </div>
   );
 }
@@ -2385,8 +2378,8 @@ function GoalInput({ label, value, unit, onChange }) {
 
 function BottomNav({ activeTab, setActiveTab }) {
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-ink/90 px-3 pb-3 pt-2 backdrop-blur-xl">
-      <div className="no-scrollbar flex gap-2 overflow-x-auto">
+    <nav className="absolute bottom-6 left-4 right-4 z-30 rounded-[32px] border border-white/5 bg-[#0a1411]/80 px-2 py-2 shadow-2xl backdrop-blur-2xl">
+      <div className="flex justify-between gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
@@ -2395,11 +2388,11 @@ function BottomNav({ activeTab, setActiveTab }) {
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex h-14 min-w-[72px] flex-col items-center justify-center gap-1 rounded-xl px-2 text-xs transition active:scale-95 ${active ? 'bg-limeFresh text-ink shadow-[0_10px_26px_rgba(183,243,74,0.22)]' : 'text-zinc-400 hover:bg-white/5'}`}
+              className={`flex h-12 flex-1 flex-col items-center justify-center gap-1 rounded-[20px] text-[10px] font-medium transition active:scale-95 ${active ? 'bg-white/10 text-limeFresh' : 'text-zinc-500 hover:text-zinc-300'}`}
               aria-label={item.label}
             >
-              <Icon size={20} />
-              <span>{item.label}</span>
+              <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+              <span className={active ? 'block' : 'hidden'}>{item.label}</span>
             </button>
           );
         })}

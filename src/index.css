@@ -61,21 +61,12 @@ select option {
 }
 
 .glass-panel,
-.auth-panel,
-.hero-panel {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
-    rgba(8, 20, 17, 0.82);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 18px 55px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(18px);
+.auth-panel {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .hero-panel {
-  background:
-    linear-gradient(145deg, rgba(183, 243, 74, 0.13), rgba(77, 213, 196, 0.065) 46%, rgba(219, 91, 131, 0.09)),
-    rgba(8, 20, 17, 0.86);
+  background: linear-gradient(145deg, rgba(183, 243, 74, 0.05), transparent 60%);
 }
 
 .brand-sheen {
