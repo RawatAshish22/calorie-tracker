@@ -786,6 +786,7 @@ function ProfileSetup({ user, onComplete, onLogout }) {
 
         <form onSubmit={submit} className="space-y-4 px-6 pb-6">
           <IconInput icon={User} label="Name" value={draft.name} onChange={(value) => update('name', value)} required />
+          <IconInput icon={CalendarDays} label="Date of birth" value={draft.dob} onChange={(value) => update('dob', value)} type="date" required />
           <div className="grid grid-cols-2 gap-3">
             <SelectInput label="Gender" value={draft.gender} onChange={(value) => update('gender', value)} options={[
               ['male', 'Male'],
@@ -794,7 +795,6 @@ function ProfileSetup({ user, onComplete, onLogout }) {
             ]} />
             <IconInput icon={User} label="Age" value={draft.age} onChange={(value) => update('age', value)} type="number" required />
           </div>
-          <IconInput icon={CalendarDays} label="Date of birth" value={draft.dob} onChange={(value) => update('dob', value)} type="date" required />
           <HeightFields profile={draft} onChange={update} />
           <div className="grid grid-cols-2 gap-3">
             <IconInput icon={Scale} label="Weight" value={draft.weightKg} onChange={(value) => update('weightKg', value)} type="number" unit="kg" required />

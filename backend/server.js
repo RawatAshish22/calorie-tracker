@@ -72,10 +72,8 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
-// Mount MongoDB API Routes
+// Mount MongoDB Auth Routes (Public)
 app.use('/api/auth', authRouter);
-app.use('/api/user', dataRouter); // Mount for user endpoints
-app.use('/api', dataRouter);      // Mount for logs endpoints (data.js defines /logs)
 
 app.post('/api/nutrition', async (request, response) => {
   const query = String(request.body?.query || '').trim();
@@ -196,6 +194,10 @@ app.post('/api/vision-nutrition', async (request, response) => {
     response.status(503).json({ error: error.message });
   }
 });
+
+// Mount Authenticated MongoDB Data Routes
+app.use('/api/user', dataRouter); // Profile, goals, ai-settings
+app.use('/api', dataRouter);      // Logs and meals
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Sistum Tracker backend listening at http://0.0.0.0:${port}`);
