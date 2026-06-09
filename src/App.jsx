@@ -191,6 +191,14 @@ export default function App() {
   const [modalResult, setModalResult] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState('');
+  const [coachMessages, setCoachMessages] = useState([
+    {
+      id: 'initial-coach-message',
+      role: 'assistant',
+      answer: 'Ask me about your calories, protein, fat loss, muscle gain, workouts, or meal planning. I will use your profile when the backend AI is configured.',
+      suggestedGoals: null,
+    },
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -533,6 +541,8 @@ function TrackerShell({
               aiSettings={aiSettings}
               onApplyGoals={onApplyCoachGoals}
               onToast={setToast}
+              messages={coachMessages}
+              setMessages={setCoachMessages}
             />
           )}
 
@@ -1706,15 +1716,7 @@ function IdealWeight({ user }) {
   );
 }
 
-function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast }) {
-  const [messages, setMessages] = useState([
-    {
-      id: uid(),
-      role: 'assistant',
-      answer: 'Ask me about your calories, protein, fat loss, muscle gain, workouts, or meal planning. I will use your profile when the backend AI is configured.',
-      suggestedGoals: null,
-    },
-  ]);
+function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, setMessages }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
