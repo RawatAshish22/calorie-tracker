@@ -1668,7 +1668,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast }) {
       suggestedGoals: null,
     },
   ]);
-  const [input, setInput] = useState('Tell me the exact nutrition I should take according to my height, weight and gender.');
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function sendMessage(event) {
