@@ -1729,7 +1729,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast }) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/coach', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/coach`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1924,7 +1924,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     setIsScanning(true);
     setStatus('Reading food...');
     try {
-      const response = await fetch('/api/vision-nutrition', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/vision-nutrition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image, provider: aiSettings.provider }),
