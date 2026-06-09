@@ -352,11 +352,11 @@ async function callCloudflare(prompt, maxTokens = 620) {
 
 async function callCloudflareVision(image) {
   const accountId = encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID);
-  const visionModel = process.env.CLOUDFLARE_VISION_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct';
-  const { mimeType, base64 } = splitDataUrl(image);
+  const visionModel = (process.env.CLOUDFLARE_VISION_MODEL || process.env.CLOUDFLARE_MODEL || '@cf/meta/llama-3.2-11b-vision-instruct').replace(/^\/+/, '');
+  const { base64 } = splitDataUrl(image);
 
-  // Use OpenAI-compatible endpoint which supports image_url in messages
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`, {
+  // Cloudflare vision models require the direct /run/ endpoint with prompt and image (byte array)
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${visionModel}`, {
     method: 'POST',
     signal: aiTimeoutSignal(25000),
     headers: {
@@ -364,25 +364,17 @@ async function callCloudflareVision(image) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: visionModel,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: visionPrompt },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-        ],
-      }],
+      prompt: visionPrompt,
+      image: Array.from(Buffer.from(base64, 'base64')),
       temperature: 0.1,
       max_tokens: 620,
     }),
   });
   const data = await readJsonResponse(response);
-  // OpenAI-compatible endpoint returns choices[].message.content
-  const result = data?.choices?.[0]?.message?.content || data?.result?.response || data?.result;
+  const result = data?.result?.response || data?.result?.text || data?.result?.output || data?.result;
   if (!result) throw new Error('cloudflare vision returned an empty response');
   return result;
 }
-
 
 async function callOpenRouter(prompt, maxTokens = 620) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
