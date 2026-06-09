@@ -905,7 +905,7 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel animate-rise relative overflow-hidden rounded-[32px] p-5">
+      <section className="hero-panel animate-rise animate-stagger-1 relative overflow-hidden rounded-[32px] p-5">
         <div className="hero-lines absolute inset-0" />
         <div className="relative flex items-start justify-between gap-3">
           <div>
@@ -929,7 +929,7 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
               <RadialBarChart
                 innerRadius="72%"
                 outerRadius="100%"
-                data={[{ name: 'Calories', value: goalProgress(totals.calories, goals.calories), fill: '#b7f34a' }]}
+                data={[{ name: 'Calories', value: goalProgress(totals.calories, goals.calories), fill: '#00F0FF' }]}
                 startAngle={90}
                 endAngle={-270}
               >
@@ -958,7 +958,7 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
 
       <WaterTracker totals={totals} goals={goals} onLogWater={onLogWater} />
 
-      <section className="rounded-[32px] bg-white/[0.02] p-5">
+      <section className="animate-rise animate-stagger-4 rounded-[32px] bg-white/[0.02] p-5">
         <div className="flex items-center gap-2 text-limeFresh">
           <Sparkles size={16} />
           <h2 className="text-sm font-bold uppercase tracking-wider text-white">Smart tip</h2>
@@ -973,14 +973,14 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
 
 function MacroSummary({ totals, goals }) {
   const rows = [
-    { key: 'protein', label: 'Protein', unit: 'g', color: '#3ee681' },
-    { key: 'carbs', label: 'Carbs', unit: 'g', color: '#4dd5c4' },
-    { key: 'fat', label: 'Fat', unit: 'g', color: '#f0b849' },
-    { key: 'fiber', label: 'Fiber', unit: 'g', color: '#db5b83' },
+    { key: 'protein', label: 'Protein', unit: 'g', color: '#B026FF' },
+    { key: 'carbs', label: 'Carbs', unit: 'g', color: '#00F0FF' },
+    { key: 'fat', label: 'Fat', unit: 'g', color: '#FFEA00' },
+    { key: 'fiber', label: 'Fiber', unit: 'g', color: '#FF3366' },
   ];
 
   return (
-    <section className="rounded-[32px] bg-white/[0.02] p-5">
+    <section className="animate-rise animate-stagger-2 rounded-[32px] bg-white/[0.02] p-5">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Daily Fuel</h2>
       </div>
@@ -1008,26 +1008,58 @@ function MacroSummary({ totals, goals }) {
 
 function WaterTracker({ totals, goals, onLogWater }) {
   const progress = goalProgress(totals.water, goals.water);
+  const [showInput, setShowInput] = useState(false);
+  const [amount, setAmount] = useState('250');
+
+  function handleAdd() {
+    const val = Number(amount);
+    if (val > 0) {
+      onLogWater(val / 1000); // Convert ml to L
+      setShowInput(false);
+      setAmount('250');
+    }
+  }
+
   return (
-    <section className="rounded-[32px] bg-white/[0.02] p-5">
+    <section className="animate-rise animate-stagger-3 rounded-[32px] bg-white/[0.02] p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Hydration</h2>
         <span className="text-sm font-light text-zinc-500">
           <span className="font-medium text-white">{roundMetric(totals.water || 0)}</span> / {goals.water}L
         </span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <div className="relative h-12 flex-1 overflow-hidden rounded-2xl bg-white/[0.04]">
           <div className="absolute bottom-0 left-0 top-0 bg-aqua transition-all duration-700" style={{ width: `${progress}%`, opacity: 0.8 }} />
         </div>
-        <button
-          type="button"
-          onClick={() => onLogWater(0.25)}
-          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-aqua/10 text-aqua transition hover:-translate-y-0.5 active:scale-95"
-          aria-label="Add 250ml water"
-        >
-          <Plus size={20} />
-        </button>
+        {showInput ? (
+          <div className="flex h-12 w-[120px] items-center rounded-2xl bg-white/[0.05] pr-1">
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-transparent px-3 text-sm text-white outline-none"
+              placeholder="ml"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            />
+            <button
+              onClick={handleAdd}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-aqua/20 text-aqua hover:bg-aqua/30"
+            >
+              <Check size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowInput(true)}
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-aqua/10 px-4 text-sm font-medium text-aqua transition hover:-translate-y-0.5 active:scale-95"
+            aria-label="Add water"
+          >
+            <Plus size={16} /> Add
+          </button>
+        )}
       </div>
     </section>
   );
@@ -2064,13 +2096,13 @@ function LogoMark({ size = 'md', animated = false }) {
       <svg viewBox="0 0 256 256" className="h-full w-full">
         <defs>
           <linearGradient id="logoRing" x1="42" y1="28" x2="216" y2="224" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#b7f34a" />
+            <stop offset="0" stopColor="#00F0FF" />
             <stop offset="0.45" stopColor="#3ee681" />
             <stop offset="1" stopColor="#4dd5c4" />
           </linearGradient>
           <linearGradient id="logoCore" x1="76" y1="60" x2="180" y2="196" gradientUnits="userSpaceOnUse">
             <stop offset="0" stopColor="#fff8d7" />
-            <stop offset="0.42" stopColor="#b7f34a" />
+            <stop offset="0.42" stopColor="#00F0FF" />
             <stop offset="1" stopColor="#22d3b6" />
           </linearGradient>
         </defs>

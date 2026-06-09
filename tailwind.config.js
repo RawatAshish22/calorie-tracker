@@ -7,15 +7,15 @@ export default {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
-        ink: '#06100d',
-        panel: '#0d1a16',
-        panelSoft: '#14241f',
-        line: '#244139',
-        limeFresh: '#b7f34a',
-        mint: '#3ee681',
-        aqua: '#4dd5c4',
-        sun: '#f0b849',
-        berry: '#db5b83',
+        ink: '#0B0C10',
+        panel: '#1F2833',
+        panelSoft: '#2D3744',
+        line: '#344150',
+        limeFresh: '#00F0FF', // Cyan
+        mint: '#B026FF',      // Neon Purple
+        aqua: '#FF007F',      // Hot Pink
+        sun: '#FFEA00',       // Cyber Yellow
+        berry: '#FF3366',     // Neon Coral
       },
       boxShadow: {
         glow: '0 18px 60px rgba(62, 230, 129, 0.16)',
