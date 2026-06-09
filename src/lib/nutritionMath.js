@@ -1,6 +1,6 @@
 import { defaultGoals, quickFoods } from '../data/foods.js';
 
-const numberFields = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium'];
+const numberFields = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium', 'water'];
 
 export function todayKey(date = new Date()) {
   const year = date.getFullYear();

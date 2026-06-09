@@ -467,6 +467,7 @@ export const defaultGoals = {
   fiber: 28,
   sugar: 50,
   sodium: 2300,
+  water: 2.5,
 };
 
 export const defaultAiSettings = {

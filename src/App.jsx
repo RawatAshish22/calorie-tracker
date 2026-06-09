@@ -7,6 +7,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Droplet,
   Flame,
   Gauge,
   Home,
@@ -75,10 +76,8 @@ const initialState = {
 const navItems = [
   { id: 'dashboard', label: 'Today', icon: Home },
   { id: 'log', label: 'Log', icon: Search },
-  { id: 'scan', label: 'Scan', icon: Camera },
   { id: 'coach', label: 'Coach', icon: Bot },
   { id: 'ideal', label: 'Ideal', icon: Gauge },
-  { id: 'history', label: 'History', icon: CalendarDays },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
@@ -189,6 +188,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const [introDone, setIntroDone] = useState(false);
   const [modalResult, setModalResult] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -362,6 +362,22 @@ export default function App() {
   async function handleLogout() {
     await apiLogout();
     dispatch({ type: 'logout' });
+    setShowLogoutConfirm(false);
+  }
+
+  async function handleLogWater(amountL) {
+    const item = {
+      id: uid(),
+      mealType: 'Water',
+      foodId: 'water',
+      name: 'Water',
+      quantity: `${amountL * 1000}ml`,
+      nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0, water: amountL },
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'addMeal', date: todayKey(), item });
+    setToast(`Logged ${amountL * 1000}ml water`);
+    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Failed to sync'); }
   }
 
   if (!hydrated || !introDone) {
@@ -389,7 +405,8 @@ export default function App() {
         smartTip={smartTip}
         setModalResult={setModalResult}
         setToast={setToast}
-        onLogout={handleLogout}
+        onLogout={() => setShowLogoutConfirm(true)}
+        onLogWater={handleLogWater}
         onRemoveToday={async (id) => {
           dispatch({ type: 'removeMeal', date: todayKey(), id });
           try { await apiRemoveMeal(todayKey(), id); } catch (err) { setToast('Failed to sync delete'); }
@@ -429,6 +446,18 @@ export default function App() {
         />
       )}
       {toast && <Toast message={toast} />}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-[24px] border border-white/10 bg-ink p-6 shadow-2xl">
+            <h3 className="text-xl font-black text-white">Logout</h3>
+            <p className="mt-2 text-sm text-zinc-300">Are you sure you want to log out?</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setShowLogoutConfirm(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-zinc-400 hover:text-white">Cancel</button>
+              <button type="button" onClick={handleLogout} className="rounded-xl bg-berry px-4 py-2 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 active:scale-95">Yes, Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -448,6 +477,7 @@ function TrackerShell({
   setModalResult,
   setToast,
   onLogout,
+  onLogWater,
   onRemoveToday,
   onRemoveHistory,
   onSaveGoals,
@@ -469,6 +499,7 @@ function TrackerShell({
               smartTip={smartTip}
               onRemove={onRemoveToday}
               onLog={() => setActiveTab('log')}
+              onLogWater={onLogWater}
             />
           )}
 
@@ -481,6 +512,8 @@ function TrackerShell({
               onResult={setModalResult}
               onToast={setToast}
               onRemove={onRemoveToday}
+              onOpenScan={() => setActiveTab('scan')}
+              onOpenHistory={() => setActiveTab('history')}
             />
           )}
 
@@ -866,7 +899,7 @@ function AppHeader({ user, onLogout }) {
   );
 }
 
-function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog }) {
+function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLogWater }) {
   const profile = user.profile || {};
   const remaining = Math.max(0, goals.calories - totals.calories);
 
@@ -923,6 +956,8 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog }) {
 
       <MacroSummary totals={totals} goals={goals} />
 
+      <WaterTracker totals={totals} goals={goals} onLogWater={onLogWater} />
+
       <section className="glass-panel rounded-[22px] p-4">
         <div className="flex items-center gap-2 text-limeFresh">
           <Sparkles size={18} />
@@ -972,8 +1007,41 @@ function MacroSummary({ totals, goals }) {
   );
 }
 
-function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast, onRemove }) {
-  const [query, setQuery] = useState('75g Chicken Burger');
+function WaterTracker({ totals, goals, onLogWater }) {
+  const progress = goalProgress(totals.water, goals.water);
+  return (
+    <section className="glass-panel rounded-[22px] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Droplet className="text-aqua" size={18} />
+          <h2 className="text-base font-bold">Hydration</h2>
+        </div>
+        <span className="text-sm font-bold text-zinc-400">
+          {roundMetric(totals.water || 0)}L / {goals.water}L
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="relative h-14 flex-1 overflow-hidden rounded-xl bg-white/[0.08]">
+          <div className="absolute bottom-0 left-0 top-0 bg-aqua transition-all duration-700" style={{ width: `${progress}%`, opacity: 0.8 }} />
+          <div className="absolute inset-0 grid place-items-center text-xs font-black text-white mix-blend-overlay">
+            {progress}% HYDRATED
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onLogWater(0.25)}
+          className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-aqua text-ink shadow-[0_12px_32px_rgba(77,213,196,0.25)] transition hover:-translate-y-0.5 active:scale-95"
+          aria-label="Add 250ml water"
+        >
+          <Plus size={24} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast, onRemove, onOpenScan, onOpenHistory }) {
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -981,7 +1049,6 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
   const foods = selectedCategory === 'All' ? quickFoods : quickFoods.filter((food) => food.category === selectedCategory);
 
   async function handleLookup(event) {
-    event?.preventDefault();
     const trimmed = query.trim();
     if (!trimmed || loading) return;
     setLoading(true);
@@ -1022,6 +1089,14 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
             {loading ? <RefreshCw className="animate-spin" size={21} /> : <Search size={21} />}
           </button>
         </form>
+        <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+          <button type="button" onClick={onOpenScan} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-limeFresh/20 text-sm font-bold text-limeFresh hover:bg-limeFresh/30">
+            <Camera size={18} /> Camera Scan
+          </button>
+          <button type="button" onClick={onOpenHistory} className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-bold text-zinc-300 hover:text-white">
+            <CalendarDays size={18} /> History
+          </button>
+        </div>
         <div className="px-4 pb-4">
           <TodayTray items={todayItems} goals={goals} totals={todayTotals} onRemove={onRemove} />
         </div>
@@ -2454,6 +2529,7 @@ function estimateGoalsFromProfile(profile) {
     fiber: 30,
     sugar: 50,
     sodium: 2300,
+    water: Math.max(1.5, Math.round((weight * 35) / 100) / 10),
   };
 }
 
