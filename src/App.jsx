@@ -36,6 +36,20 @@ import {
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from 'recharts';
 import { defaultAiSettings, defaultGoals, mealTypes, quickFoods } from './data/foods.js';
 import { loadAppState, saveAppState } from './lib/storage.js';
+import {
+  apiRegister,
+  apiLogin,
+  apiGetMe,
+  apiSaveProfile,
+  apiSaveGoals,
+  apiSaveAiSettings,
+  apiGetDayLog,
+  apiAddMeal,
+  apiRemoveMeal,
+  apiLogout,
+  apiForgotPassword,
+  apiResetPassword,
+} from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
 import {
   addTotals,
@@ -179,10 +193,49 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-    loadAppState().then((saved) => {
+    async function init() {
+      // Load offline cache first for instant UI
+      const saved = await loadAppState();
       if (mounted && saved) dispatch({ type: 'hydrate', payload: saved });
+
+      // Try fetching from cloud
+      const user = await apiGetMe();
+      if (user && mounted) {
+        // Sync user profile/goals/settings to local state
+        dispatch({
+          type: 'hydrate',
+          payload: {
+            users: [user],
+            sessionUserId: user.id || user._id,
+            goals: user.goals,
+            aiSettings: user.aiSettings,
+            logs: saved?.logs || {}, // Keep existing local logs briefly
+          },
+        });
+
+        // Fetch today's log from cloud
+        const today = todayKey();
+        try {
+          const logData = await apiGetDayLog(today);
+          if (mounted && logData?.items) {
+            dispatch({
+              type: 'hydrate',
+              payload: {
+                users: [user],
+                sessionUserId: user.id || user._id,
+                goals: user.goals,
+                aiSettings: user.aiSettings,
+                logs: { ...(saved?.logs || {}), [today]: logData.items },
+              },
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to fetch today log:', err);
+        }
+      }
       if (mounted) setHydrated(true);
-    });
+    }
+    init();
     return () => {
       mounted = false;
     };
@@ -204,66 +257,111 @@ export default function App() {
   const todayTotals = useMemo(() => addTotals(todayItems), [todayItems]);
   const smartTip = useMemo(() => buildSmartTip(todayTotals, state.goals), [todayTotals, state.goals]);
 
-  function addResultToLog(result, mealType, date = todayKey()) {
-    dispatch({
-      type: 'addMeal',
-      date,
-      item: {
-        id: uid(),
-        mealType,
-        foodId: result.foodId,
-        name: result.foodName,
-        quantity: result.quantity,
-        nutrition: result.nutrition,
-        source: result.source,
-        notes: result.notes,
-        createdAt: new Date().toISOString(),
-      },
-    });
+  async function addResultToLog(result, mealType, date = todayKey()) {
+    const item = {
+      id: uid(),
+      mealType,
+      foodId: result.foodId,
+      name: result.foodName,
+      quantity: result.quantity,
+      nutrition: result.nutrition,
+      source: result.source,
+      notes: result.notes,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Optimistic UI update
+    dispatch({ type: 'addMeal', date, item });
     setModalResult(null);
     setSelectedDate(date);
     setToast(`${result.foodName} logged`);
+
+    // Cloud sync
+    try {
+      await apiAddMeal(date, item);
+    } catch (err) {
+      setToast('Failed to save meal to cloud');
+      dispatch({ type: 'removeMeal', date, id: item.id }); // Revert on failure
+    }
   }
 
-  function handleRegister(account) {
+  async function handleRegister(account) {
     const email = account.email.trim().toLowerCase();
-    if (state.users.some((user) => user.email === email)) {
-      setToast('Account already exists');
+    try {
+      const user = await apiRegister(account.name.trim(), email, account.password);
+      dispatch({
+        type: 'createUser',
+        user: { ...user, id: user._id || user.id },
+      });
+      setToast('Account created');
+      return true;
+    } catch (err) {
+      setToast(err.message || 'Registration failed');
       return false;
     }
-
-    dispatch({
-      type: 'createUser',
-      user: {
-        id: uid(),
-        name: account.name.trim(),
-        email,
-        password: account.password,
-        profile: null,
-        createdAt: new Date().toISOString(),
-      },
-    });
-    setToast('Account created');
-    return true;
   }
 
-  function handleLogin(credentials) {
+  async function handleLogin(credentials) {
     const email = credentials.email.trim().toLowerCase();
-    const user = state.users.find((item) => item.email === email && item.password === credentials.password);
-    if (!user) {
-      setToast('Invalid credentials');
+    try {
+      const user = await apiLogin(email, credentials.password);
+      // Sync cloud data to local state
+      dispatch({
+        type: 'hydrate',
+        payload: {
+          users: [{ ...user, id: user._id || user.id }],
+          sessionUserId: user._id || user.id,
+          goals: user.goals,
+          aiSettings: user.aiSettings,
+        },
+      });
+      setToast(`Welcome back, ${user.name}`);
+
+      // Fetch logs for today
+      try {
+        const today = todayKey();
+        const logData = await apiGetDayLog(today);
+        if (logData?.items) {
+          dispatch({
+            type: 'hydrate',
+            payload: {
+              users: [{ ...user, id: user._id || user.id }],
+              sessionUserId: user._id || user.id,
+              goals: user.goals,
+              aiSettings: user.aiSettings,
+              logs: { [today]: logData.items },
+            },
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to fetch logs after login', e);
+      }
+
+      return true;
+    } catch (err) {
+      setToast(err.message || 'Invalid credentials');
       return false;
     }
-    dispatch({ type: 'login', userId: user.id });
-    setToast(`Welcome back, ${user.name}`);
-    return true;
   }
 
-  function handleProfileSave(profile) {
+  async function handleProfileSave(profile) {
     const goals = estimateGoalsFromProfile(profile);
+    // Optimistic UI
     dispatch({ type: 'saveProfile', userId: currentUser.id, profile, goals });
     setToast('Profile ready');
     setActiveTab('dashboard');
+
+    // Cloud sync
+    try {
+      await apiSaveProfile(profile, goals);
+    } catch (err) {
+      setToast('Failed to sync profile to cloud');
+    }
+  }
+
+  async function handleLogout() {
+    await apiLogout();
+    dispatch({ type: 'logout' });
   }
 
   if (!hydrated || !introDone) {
@@ -272,7 +370,7 @@ export default function App() {
 
   let content;
   if (!currentUser) {
-    content = <AuthScreen onLogin={handleLogin} onRegister={handleRegister} />;
+    content = <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onToast={setToast} />;
   } else if (!currentUser.profile?.completed) {
     content = <ProfileSetup user={currentUser} onComplete={handleProfileSave} onLogout={() => dispatch({ type: 'logout' })} />;
   } else {
@@ -291,16 +389,24 @@ export default function App() {
         smartTip={smartTip}
         setModalResult={setModalResult}
         setToast={setToast}
-        onLogout={() => dispatch({ type: 'logout' })}
-        onRemoveToday={(id) => dispatch({ type: 'removeMeal', date: todayKey(), id })}
-        onRemoveHistory={(date, id) => dispatch({ type: 'removeMeal', date, id })}
-        onSaveGoals={(goals) => {
+        onLogout={handleLogout}
+        onRemoveToday={async (id) => {
+          dispatch({ type: 'removeMeal', date: todayKey(), id });
+          try { await apiRemoveMeal(todayKey(), id); } catch (err) { setToast('Failed to sync delete'); }
+        }}
+        onRemoveHistory={async (date, id) => {
+          dispatch({ type: 'removeMeal', date, id });
+          try { await apiRemoveMeal(date, id); } catch (err) { setToast('Failed to sync delete'); }
+        }}
+        onSaveGoals={async (goals) => {
           dispatch({ type: 'saveGoals', goals });
           setToast('Goals saved');
+          try { await apiSaveGoals(goals); } catch (err) { console.warn(err); }
         }}
-        onSaveAi={(settings) => {
+        onSaveAi={async (settings) => {
           dispatch({ type: 'saveAiSettings', settings });
           setToast('AI settings saved');
+          try { await apiSaveAiSettings(settings); } catch (err) { console.warn(err); }
         }}
         onApplyCoachGoals={(goals) => {
           dispatch({ type: 'saveGoals', goals: { ...state.goals, ...goals } });
@@ -453,18 +559,37 @@ function SplashScreen({ onDone }) {
   );
 }
 
-function AuthScreen({ onLogin, onRegister }) {
-  const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+function AuthScreen({ onLogin, onRegister, onToast }) {
+  const [mode, setMode] = useState('login'); // login | register | forgot | reset
+  const [form, setForm] = useState({ name: '', email: '', password: '', code: '', newPassword: '' });
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     if (mode === 'login') onLogin({ email: form.email, password: form.password });
     if (mode === 'register') onRegister(form);
+    if (mode === 'forgot') {
+      try {
+        const data = await apiForgotPassword(form.email);
+        onToast(data.message || 'Check your email for the code');
+        if (data.code) onToast(`Dev Code: ${data.code}`); // For local testing
+        setMode('reset');
+      } catch (err) {
+        onToast(err.message || 'Failed to send reset code');
+      }
+    }
+    if (mode === 'reset') {
+      try {
+        const data = await apiResetPassword(form.email, form.code, form.newPassword);
+        onToast(data.message || 'Password reset successful');
+        setMode('login');
+      } catch (err) {
+        onToast(err.message || 'Reset failed');
+      }
+    }
   }
 
   return (
@@ -498,6 +623,18 @@ function AuthScreen({ onLogin, onRegister }) {
         </div>
 
         <form onSubmit={submit} className="space-y-4 px-6 pb-6">
+          {(mode === 'login' || mode === 'register' || mode === 'forgot') && (
+            <IconInput
+              icon={Mail}
+              label="Email"
+              value={form.email}
+              onChange={(value) => update('email', value)}
+              required
+              type="email"
+              placeholder="you@example.com"
+            />
+          )}
+
           {mode === 'register' && (
             <IconInput
               icon={User}
@@ -508,31 +645,72 @@ function AuthScreen({ onLogin, onRegister }) {
               placeholder="Your name"
             />
           )}
-          <IconInput
-            icon={Mail}
-            label="Email"
-            value={form.email}
-            onChange={(value) => update('email', value)}
-            required
-            type="email"
-            placeholder="you@example.com"
-          />
-          <IconInput
-            icon={Lock}
-            label="Password"
-            value={form.password}
-            onChange={(value) => update('password', value)}
-            required
-            type="password"
-            placeholder="Password"
-          />
+
+          {(mode === 'login' || mode === 'register') && (
+            <IconInput
+              icon={Lock}
+              label="Password"
+              value={form.password}
+              onChange={(value) => update('password', value)}
+              required
+              type="password"
+              placeholder="Password"
+            />
+          )}
+
+          {mode === 'reset' && (
+            <>
+              <IconInput
+                icon={Lock}
+                label="Reset Code"
+                value={form.code}
+                onChange={(value) => update('code', value)}
+                required
+                placeholder="6-digit code"
+              />
+              <IconInput
+                icon={Lock}
+                label="New Password"
+                value={form.newPassword}
+                onChange={(value) => update('newPassword', value)}
+                required
+                type="password"
+                placeholder="New Password"
+              />
+            </>
+          )}
+
+          {mode === 'login' && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMode('forgot')}
+                className="text-xs font-medium text-limeFresh hover:underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
+
           <button
             type="submit"
             className="group inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-limeFresh px-4 font-bold text-ink shadow-[0_18px_42px_rgba(183,243,74,0.24)] transition hover:-translate-y-0.5 active:scale-95"
           >
-            {mode === 'login' ? <LogIn size={19} /> : <UserPlus size={19} />}
-            {mode === 'login' ? 'Start logging' : 'Create profile'}
+            {mode === 'login' && <><LogIn size={19} /> Start logging</>}
+            {mode === 'register' && <><UserPlus size={19} /> Create profile</>}
+            {mode === 'forgot' && <><Send size={19} /> Send Code</>}
+            {mode === 'reset' && <><Lock size={19} /> Reset Password</>}
           </button>
+          
+          {(mode === 'forgot' || mode === 'reset') && (
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className="mt-2 w-full text-center text-sm text-zinc-400 hover:text-white"
+            >
+              Back to login
+            </button>
+          )}
         </form>
       </section>
     </div>

@@ -1,7 +1,12 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import { estimateNutrition, normalizeNutrition } from '../src/lib/nutritionMath.js';
+
+// New API Routers
+import authRouter from './routes/auth.js';
+import dataRouter from './routes/data.js';
 
 dotenv.config({ path: new URL('.env', import.meta.url) });
 
@@ -54,9 +59,23 @@ app.use((_request, response, next) => {
   next();
 });
 
+// MongoDB Connection
+if (process.env.MONGODB_URI && process.env.MONGODB_URI.includes('cluster')) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('✅ Connected to MongoDB Atlas'))
+    .catch((err) => console.error('❌ MongoDB connection error:', err.message));
+} else {
+  console.warn('⚠️ No valid MONGODB_URI found. Auth and data sync features will fail until configured.');
+}
+
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true });
+  response.json({ ok: true, db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
+
+// Mount MongoDB API Routes
+app.use('/api/auth', authRouter);
+app.use('/api/user', dataRouter); // Mount for user endpoints
+app.use('/api', dataRouter);      // Mount for logs endpoints (data.js defines /logs)
 
 app.post('/api/nutrition', async (request, response) => {
   const query = String(request.body?.query || '').trim();
