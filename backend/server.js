@@ -41,8 +41,9 @@ const coachPrompt = [
 const visionPrompt = [
   'You are Sistum Tracker food vision AI.',
   'Look at the image and estimate visible food items and total nutrition.',
+  'This is for a rough estimation only, you must provide your best guess even if uncertain.',
   'Return valid JSON only with keys: detectedItems, foodName, quantity, calories, protein, carbs, fat, fiber, sugar, sodium, vitamins, funFact, confidence, servingGrams.',
-  'If uncertain, say so in confidence and notes. Do not invent exactness.',
+  'If uncertain, say so in confidence and notes. Do not invent exactness, but you MUST return the JSON object.'
 ].join(' ');
 
 app.use(express.json({ limit: '7mb' }));
@@ -364,7 +365,7 @@ async function callCloudflareVision(image) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      prompt: visionPrompt,
+      prompt: visionPrompt + '\n\nOutput only a raw JSON object, starting with {',
       image: Array.from(Buffer.from(base64, 'base64')),
       temperature: 0.1,
       max_tokens: 620,
@@ -485,7 +486,8 @@ function parseJsonValue(value) {
   } catch {
     const json = extractFirstJsonObject(cleaned);
     if (json) return JSON.parse(json);
-    throw new Error('AI response was not JSON');
+    const rawSnippet = cleaned.length > 60 ? cleaned.substring(0, 60) + '...' : cleaned;
+    throw new Error(`AI response was not JSON: ${rawSnippet}`);
   }
 }
 
