@@ -387,7 +387,7 @@ async function callOpenRouter(prompt, maxTokens = 620) {
       'X-Title': 'Sistum Tracker',
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
       max_tokens: maxTokens,
@@ -408,7 +408,7 @@ async function callOpenRouterVision(image) {
       'X-Title': 'Sistum Tracker',
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
       messages: [{
         role: 'user',
         content: [
