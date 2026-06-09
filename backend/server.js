@@ -244,7 +244,7 @@ async function callBestTextProvider(prompt, provider, mode) {
     try {
       if (candidate === 'cloudflare' && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) return await callCloudflare(prompt, maxTokens);
       if (candidate === 'gemini' && process.env.GEMINI_API_KEY) return await callGemini(prompt, maxTokens);
-      if (candidate === 'openrouter' && process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL) return await callOpenRouter(prompt, maxTokens);
+      if (candidate === 'openrouter' && process.env.OPENROUTER_API_KEY) return await callOpenRouter(prompt, maxTokens);
     } catch (error) {
       errors.push(`${candidate}: ${error.message}`);
     }
@@ -258,7 +258,7 @@ async function callBestVisionProvider(image, provider) {
     try {
       if (candidate === 'gemini' && process.env.GEMINI_API_KEY) return await callGeminiVision(image);
       if (candidate === 'cloudflare' && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) return await callCloudflareVision(image);
-      if (candidate === 'openrouter' && process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL) return await callOpenRouterVision(image);
+      if (candidate === 'openrouter' && process.env.OPENROUTER_API_KEY) return await callOpenRouterVision(image);
     } catch (error) {
       errors.push(`${candidate}: ${error.message}`);
     }
@@ -387,7 +387,7 @@ async function callOpenRouter(prompt, maxTokens = 620) {
       'X-Title': 'Sistum Tracker',
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL,
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2,
       max_tokens: maxTokens,
@@ -408,7 +408,7 @@ async function callOpenRouterVision(image) {
       'X-Title': 'Sistum Tracker',
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL,
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
       messages: [{
         role: 'user',
         content: [
