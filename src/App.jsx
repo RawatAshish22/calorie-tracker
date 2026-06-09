@@ -1829,6 +1829,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
   const [status, setStatus] = useState(getCameraStatusMessage());
   const [facingMode, setFacingMode] = useState('environment');
   const [isScanning, setIsScanning] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => () => stopCamera(), []);
@@ -1878,6 +1879,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     streamRef.current = null;
     setActive(false);
     setAutoScan(false);
+    setUploadedImage(null);
     setStatus(getCameraStatusMessage());
   }
 
@@ -1903,6 +1905,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
         const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        setUploadedImage(base64);
         processImage(base64);
       };
       img.src = e.target.result;
@@ -1967,7 +1970,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
       <section className="glass-panel overflow-hidden rounded-[22px]">
         <div className="relative aspect-[4/5] bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
-          {!active && (
+          {!active && !uploadedImage && (
             <div className="absolute inset-0 grid place-items-center bg-black/70 px-8 text-center">
               <div>
                 <Camera className="mx-auto text-limeFresh" size={44} />
@@ -1979,6 +1982,9 @@ function CameraScan({ aiSettings, onResult, onToast }) {
                 )}
               </div>
             </div>
+          )}
+          {!active && uploadedImage && (
+            <img src={uploadedImage} alt="Uploaded food" className="absolute inset-0 h-full w-full object-cover" />
           )}
           {isScanning && (
             <div className="absolute inset-0 pointer-events-none">
