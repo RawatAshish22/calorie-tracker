@@ -1049,6 +1049,7 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
   const foods = selectedCategory === 'All' ? quickFoods : quickFoods.filter((food) => food.category === selectedCategory);
 
   async function handleLookup(event) {
+    event?.preventDefault();
     const trimmed = query.trim();
     if (!trimmed || loading) return;
     setLoading(true);
