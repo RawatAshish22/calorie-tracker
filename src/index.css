@@ -296,3 +296,8 @@ select option {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
   animation: shimmer 3s infinite;
 }
+@keyframes scan {
+  0%, 100% { top: 0%; opacity: 0; }
+  10%, 90% { opacity: 1; }
+  50% { top: 100%; opacity: 1; }
+}

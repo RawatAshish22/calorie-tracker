@@ -29,6 +29,7 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Upload,
   User,
   UserPlus,
   Utensils,
@@ -1826,6 +1827,9 @@ function CameraScan({ aiSettings, onResult, onToast }) {
   const [autoScan, setAutoScan] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [status, setStatus] = useState(getCameraStatusMessage());
+  const [facingMode, setFacingMode] = useState('environment');
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => () => stopCamera(), []);
 
@@ -1841,7 +1845,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     return () => window.clearInterval(timerRef.current);
   }, [active, autoScan]);
 
-  async function startCamera() {
+  async function startCamera(mode = facingMode) {
     const mediaDevices = navigator.mediaDevices;
     if (!mediaDevices?.getUserMedia) {
       const message = getCameraStatusMessage();
@@ -1852,7 +1856,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
 
     try {
       const stream = await mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 960 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: mode }, width: { ideal: 960 }, height: { ideal: 720 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -1877,15 +1881,41 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     setStatus(getCameraStatusMessage());
   }
 
-  async function scanFrame() {
-    if (busyRef.current || !videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    if (!video.videoWidth) return;
+  async function toggleCamera() {
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newMode);
+    if (active) {
+      stopCamera();
+      setTimeout(() => startCamera(newMode), 300);
+    }
+  }
 
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        processImage(base64);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function processImage(image) {
     busyRef.current = true;
+    setIsScanning(true);
     setStatus('Reading food...');
     try {
-      const image = captureVideoFrame(video, canvasRef.current);
       const response = await fetch('/api/vision-nutrition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1908,7 +1938,16 @@ function CameraScan({ aiSettings, onResult, onToast }) {
       onToast(msg.length > 120 ? msg.slice(0, 117) + '...' : msg);
     } finally {
       busyRef.current = false;
+      setIsScanning(false);
     }
+  }
+
+  async function scanFrame() {
+    if (busyRef.current || !videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    if (!video.videoWidth) return;
+    const image = captureVideoFrame(video, canvasRef.current);
+    processImage(image);
   }
 
   return (
@@ -1932,13 +1971,19 @@ function CameraScan({ aiSettings, onResult, onToast }) {
             <div className="absolute inset-0 grid place-items-center bg-black/70 px-8 text-center">
               <div>
                 <Camera className="mx-auto text-limeFresh" size={44} />
-                <p className="mt-3 text-sm text-zinc-300">Open camera to scan visible food without clicking a photo.</p>
+                <p className="mt-3 text-sm text-zinc-300">Open camera or upload a photo to scan food.</p>
                 {!hasCameraApi() && (
                   <p className="mt-3 rounded-xl border border-sun/25 bg-sun/10 px-3 py-2 text-xs leading-5 text-sun">
                     Camera needs HTTPS on mobile. Install/deploy the app with HTTPS or use a native wrapper for live scanning.
                   </p>
                 )}
               </div>
+            </div>
+          )}
+          {isScanning && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="w-full h-full bg-limeFresh/10 animate-pulse mix-blend-overlay"></div>
+              <div className="absolute left-0 right-0 h-1 bg-limeFresh shadow-[0_0_15px_#FFB020] animate-[scan_2s_ease-in-out_infinite]"></div>
             </div>
           )}
           {scanResult && (
@@ -1956,15 +2001,24 @@ function CameraScan({ aiSettings, onResult, onToast }) {
           )}
         </div>
         <canvas ref={canvasRef} className="hidden" />
-        <div className="grid grid-cols-3 gap-2 p-3">
-          <button type="button" onClick={active ? stopCamera : startCamera} className="h-11 rounded-xl bg-limeFresh px-3 text-sm font-bold text-ink">
-            {active ? 'Stop' : 'Open'}
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+        <div className="grid grid-cols-4 gap-2 p-3">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5">
+            <Upload size={18} />
           </button>
-          <button type="button" onClick={scanFrame} disabled={!active} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
-            Capture
+          <button type="button" onClick={toggleCamera} className="flex h-11 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5">
+            <RefreshCw size={18} />
+          </button>
+          <button type="button" onClick={active ? stopCamera : startCamera} className="col-span-2 h-11 rounded-xl bg-limeFresh px-3 text-sm font-bold text-ink">
+            {active ? 'Stop Camera' : 'Start Camera'}
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+          <button type="button" onClick={scanFrame} disabled={!active || isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
+            {isScanning ? 'Scanning...' : 'Capture Now'}
           </button>
           <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className="h-11 rounded-xl border border-limeFresh px-3 text-sm font-bold text-limeFresh disabled:opacity-50">
-            Add
+            Log Result
           </button>
         </div>
         <div className="border-t border-white/10 px-3 py-2 text-xs text-zinc-400">
