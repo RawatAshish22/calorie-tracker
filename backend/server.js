@@ -199,9 +199,13 @@ app.post('/api/vision-nutrition', async (request, response) => {
 app.use('/api/user', dataRouter); // Profile, goals, ai-settings
 app.use('/api', dataRouter);      // Logs and meals
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Sistum Tracker backend listening at http://0.0.0.0:${port}`);
-});
+if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Sistum Tracker backend listening at http://0.0.0.0:${port}`);
+  });
+}
+
+export default app;
 
 function normalizeProvider(provider) {
   return String(provider || process.env.AI_PROVIDER || 'auto').toLowerCase();
