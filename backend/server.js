@@ -199,7 +199,7 @@ app.post('/api/vision-nutrition', async (request, response) => {
 app.use('/api/user', dataRouter); // Profile, goals, ai-settings
 app.use('/api', dataRouter);      // Logs and meals
 
-if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
+if (process.env.VERCEL !== '1') {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Sistum Tracker backend listening at http://0.0.0.0:${port}`);
   });
