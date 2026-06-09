@@ -899,9 +899,49 @@ function AppHeader({ user, onLogout }) {
   );
 }
 
+function GlowingRing({ progress }) {
+  const radius = 80;
+  const stroke = 12;
+  const normalizedRadius = radius - stroke;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const strokeDashoffset = circumference - (progress / 100) * circumference;
+
+  return (
+    <div className="relative mx-auto flex h-48 w-48 items-center justify-center">
+      <svg height={radius * 2} width={radius * 2} className="-rotate-90 transform drop-shadow-[0_0_24px_rgba(255,176,32,0.4)]">
+        <circle
+          stroke="rgba(255,255,255,0.05)"
+          fill="transparent"
+          strokeWidth={stroke}
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+        />
+        <circle
+          stroke="#FFB020"
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeDasharray={circumference + ' ' + circumference}
+          style={{ strokeDashoffset }}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+          r={normalizedRadius}
+          cx={radius}
+          cy={radius}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-4xl font-black text-white">{progress}%</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Fuel</span>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLogWater }) {
   const profile = user.profile || {};
   const remaining = Math.max(0, goals.calories - totals.calories);
+  const progress = goalProgress(totals.calories, goals.calories);
 
   return (
     <div className="space-y-4">
@@ -923,28 +963,8 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
           </button>
         </div>
 
-        <div className="relative mt-4 grid grid-cols-[1fr_112px] items-center gap-2">
-          <div className="h-52 min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart
-                innerRadius="72%"
-                outerRadius="100%"
-                data={[{ name: 'Calories', value: goalProgress(totals.calories, goals.calories), fill: '#00F0FF' }]}
-                startAngle={90}
-                endAngle={-270}
-              >
-                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                <RadialBar dataKey="value" cornerRadius={10} background={{ fill: '#172a25' }} />
-                <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" className="fill-white text-4xl font-black">
-                  {goalProgress(totals.calories, goals.calories)}%
-                </text>
-                <text x="50%" y="61%" textAnchor="middle" dominantBaseline="middle" className="fill-zinc-300 text-sm">
-                  daily fuel
-                </text>
-              </RadialBarChart>
-            </ResponsiveContainer>
-          </div>
-          <FoodHeroVisual />
+        <div className="relative mt-6 flex items-center justify-center py-2">
+          <GlowingRing progress={progress} />
         </div>
 
         <div className="relative mt-3 grid grid-cols-3 gap-2">
@@ -980,7 +1000,7 @@ function MacroSummary({ totals, goals }) {
   ];
 
   return (
-    <section className="animate-rise animate-stagger-2 rounded-[32px] bg-white/[0.02] p-5">
+    <section className="animate-rise animate-stagger-2 animate-shimmer rounded-[32px] bg-white/[0.02] p-5">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Daily Fuel</h2>
       </div>
@@ -1021,7 +1041,7 @@ function WaterTracker({ totals, goals, onLogWater }) {
   }
 
   return (
-    <section className="animate-rise animate-stagger-3 rounded-[32px] bg-white/[0.02] p-5">
+    <section className="animate-rise animate-stagger-3 animate-shimmer rounded-[32px] bg-white/[0.02] p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Hydration</h2>
         <span className="text-sm font-light text-zinc-500">

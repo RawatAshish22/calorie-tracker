@@ -14,7 +14,7 @@
 
 html {
   min-height: 100%;
-  background: #0B0C10;
+  background: #0F1115;
 }
 
 html,
@@ -26,7 +26,7 @@ body,
 body {
   min-height: 100%;
   margin: 0;
-  background: #0B0C10;
+  background: #0F1115;
   overscroll-behavior: none;
   touch-action: manipulation;
 }
@@ -51,13 +51,13 @@ select option {
 }
 
 .app-shell {
-  background: #0B0C10;
+  background: #0F1115;
 }
 
 .phone-frame {
   position: relative;
   width: 100%;
-  background: #0B0C10;
+  background: #0F1115;
 }
 
 .glass-panel,
@@ -71,8 +71,8 @@ select option {
 
 .brand-sheen {
   background:
-    linear-gradient(110deg, rgba(0, 240, 255, 0.16), transparent 40%),
-    linear-gradient(35deg, transparent 0%, rgba(176, 38, 255, 0.13) 58%, rgba(255, 0, 127, 0.12) 100%);
+    linear-gradient(110deg, rgba(255, 176, 32, 0.16), transparent 40%),
+    linear-gradient(35deg, transparent 0%, rgba(255, 107, 53, 0.13) 58%, rgba(232, 49, 81, 0.12) 100%);
 }
 
 .hero-lines {
@@ -228,7 +228,7 @@ select option {
   width: 7px;
   height: 12px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #00F0FF, #B026FF);
+  background: linear-gradient(180deg, #FFB020, #FF6B35);
   animation: music-bounce 620ms ease-in-out infinite;
 }
 
@@ -246,15 +246,15 @@ select option {
 @media (min-width: 640px) {
   body {
     background:
-      linear-gradient(125deg, rgba(11, 12, 16, 1) 0%, rgba(25, 20, 35, 1) 42%, rgba(15, 25, 45, 0.95) 100%),
-      #0B0C10;
+      linear-gradient(125deg, rgba(15, 17, 21, 1) 0%, rgba(30, 20, 25, 1) 42%, rgba(20, 15, 20, 0.95) 100%),
+      #0F1115;
   }
 
   .app-shell {
     background:
-      linear-gradient(160deg, rgba(0, 240, 255, 0.08), transparent 28%),
-      linear-gradient(30deg, transparent 0%, rgba(176, 38, 255, 0.08) 45%, rgba(255, 0, 127, 0.08) 100%),
-      #0B0C10;
+      linear-gradient(160deg, rgba(255, 176, 32, 0.06), transparent 28%),
+      linear-gradient(30deg, transparent 0%, rgba(255, 107, 53, 0.05) 45%, rgba(232, 49, 81, 0.05) 100%),
+      #0F1115;
   }
 
   .phone-frame {
@@ -273,7 +273,26 @@ select option {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes shimmer {
+  0% { transform: translateX(-150%); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
 .animate-stagger-1 { animation: slide-up-stagger 400ms ease-out both; animation-delay: 50ms; }
 .animate-stagger-2 { animation: slide-up-stagger 400ms ease-out both; animation-delay: 100ms; }
 .animate-stagger-3 { animation: slide-up-stagger 400ms ease-out both; animation-delay: 150ms; }
 .animate-stagger-4 { animation: slide-up-stagger 400ms ease-out both; animation-delay: 200ms; }
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.animate-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  animation: shimmer 3s infinite;
+}
