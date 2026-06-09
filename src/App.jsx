@@ -1879,6 +1879,11 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     streamRef.current = null;
     setActive(false);
     setAutoScan(false);
+    setStatus(getCameraStatusMessage());
+  }
+
+  function clearScan() {
+    setScanResult(null);
     setUploadedImage(null);
     setStatus(getCameraStatusMessage());
   }
@@ -1994,8 +1999,11 @@ function CameraScan({ aiSettings, onResult, onToast }) {
           )}
           {scanResult && (
             <div className="absolute bottom-3 left-3 right-3 rounded-2xl border border-white/10 bg-black/70 p-3 backdrop-blur">
+              <button type="button" onClick={clearScan} className="absolute right-3 top-3 rounded-full bg-white/10 p-1.5 text-zinc-400 hover:text-white">
+                <X size={16} />
+              </button>
               <p className="text-xs uppercase text-limeFresh">{scanResult.confidence} confidence</p>
-              <h3 className="mt-1 text-lg font-black">{scanResult.foodName}</h3>
+              <h3 className="mt-1 pr-6 text-lg font-black">{scanResult.foodName}</h3>
               <p className="text-sm text-zinc-300">{scanResult.quantity}</p>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <span>{scanResult.nutrition.calories} kcal</span>
@@ -2020,9 +2028,15 @@ function CameraScan({ aiSettings, onResult, onToast }) {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-          <button type="button" onClick={scanFrame} disabled={!active || isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
-            {isScanning ? 'Scanning...' : 'Capture Now'}
-          </button>
+          {uploadedImage ? (
+            <button type="button" onClick={clearScan} disabled={isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
+              Clear Image
+            </button>
+          ) : (
+            <button type="button" onClick={scanFrame} disabled={!active || isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
+              {isScanning ? 'Scanning...' : 'Capture Now'}
+            </button>
+          )}
           <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className="h-11 rounded-xl border border-limeFresh px-3 text-sm font-bold text-limeFresh disabled:opacity-50">
             Log Result
           </button>
