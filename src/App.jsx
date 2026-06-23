@@ -51,12 +51,13 @@ import {
   apiSaveProfile,
   apiSaveGoals,
   apiSaveAiSettings,
-  apiGetDayLog,
+  apiGetLogs,
   apiAddMeal,
   apiRemoveMeal,
   apiLogout,
   apiForgotPassword,
   apiResetPassword,
+  getApiBaseUrl,
 } from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
 import {
@@ -133,6 +134,49 @@ const exerciseModes = [
 
 function getFoodVisual(foodId) {
   return foodVisuals[foodId] || { type: 'bowl', bg: '#14241f', plate: '#eafff2', fill: '#3ee681', accent: '#f0b849' };
+}
+
+async function mergeCloudLogs(existingLogs = {}) {
+  try {
+    const end = todayKey();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    const start = todayKey(startDate);
+    const cloudLogs = await apiGetLogs(start, end);
+    if (!cloudLogs || typeof cloudLogs !== 'object') return existingLogs;
+    return { ...existingLogs, ...cloudLogs };
+  } catch {
+    return existingLogs;
+  }
+}
+
+function buildOfflineCoachReply(message, profile, goals) {
+  const localGoals = estimateGoalsFromProfile(profile || {});
+  const mergedGoals = { ...localGoals, ...goals };
+  const casual = /^(hi|hello|hey|thanks|thank you)[!.?\s]*$/i.test(message.trim());
+  if (casual) {
+    return {
+      answer: `Hey ${profile?.name || 'there'}! I am your offline coach. Ask about calories, macros, meal ideas, or workout plans and I will use your saved profile targets.`,
+      suggestedGoals: null,
+      source: 'Offline coach',
+    };
+  }
+  if (isGoalQuestion(message)) {
+    return {
+      answer: `Based on your profile, aim for about ${mergedGoals.calories} kcal/day with ${mergedGoals.protein}g protein, ${mergedGoals.carbs}g carbs, and ${mergedGoals.fat}g fat. Keep protein steady across meals and repeat the same core foods most days.`,
+      suggestedGoals: mergedGoals,
+      source: 'Offline coach',
+    };
+  }
+  return {
+    answer: `Offline mode: your profile targets are ${mergedGoals.calories} kcal, ${mergedGoals.protein}g protein, ${mergedGoals.carbs}g carbs, and ${mergedGoals.fat}g fat. Ask for meal ideas, workouts, or macro help anytime.`,
+    suggestedGoals: mergedGoals,
+    source: 'Offline coach',
+  };
+}
+
+function isGoalQuestion(message) {
+  return /calorie|macro|protein|carb|fat|nutrition|goal|diet|weight|cut|bulk|gain|loss|muscle|meal|food|eat|workout|train/i.test(message);
 }
 
 function reducer(state, action) {
@@ -225,7 +269,7 @@ export default function App() {
       // Try fetching from cloud
       const user = await apiGetMe();
       if (user && mounted) {
-        // Sync user profile/goals/settings to local state
+        const mergedLogs = await mergeCloudLogs(saved?.logs || {});
         dispatch({
           type: 'hydrate',
           payload: {
@@ -233,29 +277,9 @@ export default function App() {
             sessionUserId: user.id || user._id,
             goals: user.goals,
             aiSettings: user.aiSettings,
-            logs: saved?.logs || {}, // Keep existing local logs briefly
+            logs: mergedLogs,
           },
         });
-
-        // Fetch today's log from cloud
-        const today = todayKey();
-        try {
-          const logData = await apiGetDayLog(today);
-          if (mounted && logData?.items) {
-            dispatch({
-              type: 'hydrate',
-              payload: {
-                users: [user],
-                sessionUserId: user.id || user._id,
-                goals: user.goals,
-                aiSettings: user.aiSettings,
-                logs: { ...(saved?.logs || {}), [today]: logData.items },
-              },
-            });
-          }
-        } catch (err) {
-          console.warn('Failed to fetch today log:', err);
-        }
       }
       if (mounted) setHydrated(true);
     }
@@ -304,8 +328,7 @@ export default function App() {
     try {
       await apiAddMeal(date, item);
     } catch (err) {
-      setToast('Failed to save meal to cloud');
-      dispatch({ type: 'removeMeal', date, id: item.id }); // Revert on failure
+      setToast('Saved locally — cloud sync failed');
     }
   }
 
@@ -329,7 +352,8 @@ export default function App() {
     const email = credentials.email.trim().toLowerCase();
     try {
       const user = await apiLogin(email, credentials.password);
-      // Sync cloud data to local state
+      const saved = await loadAppState();
+      const mergedLogs = await mergeCloudLogs(saved?.logs || {});
       dispatch({
         type: 'hydrate',
         payload: {
@@ -337,30 +361,10 @@ export default function App() {
           sessionUserId: user._id || user.id,
           goals: user.goals,
           aiSettings: user.aiSettings,
+          logs: mergedLogs,
         },
       });
       setToast(`Welcome back, ${user.name}`);
-
-      // Fetch logs for today
-      try {
-        const today = todayKey();
-        const logData = await apiGetDayLog(today);
-        if (logData?.items) {
-          dispatch({
-            type: 'hydrate',
-            payload: {
-              users: [{ ...user, id: user._id || user.id }],
-              sessionUserId: user._id || user.id,
-              goals: user.goals,
-              aiSettings: user.aiSettings,
-              logs: { [today]: logData.items },
-            },
-          });
-        }
-      } catch (e) {
-        console.warn('Failed to fetch logs after login', e);
-      }
-
       return true;
     } catch (err) {
       setToast(err.message || 'Invalid credentials');
@@ -401,7 +405,7 @@ export default function App() {
     };
     dispatch({ type: 'addMeal', date: todayKey(), item });
     setToast(`Logged ${amountL * 1000}ml water`);
-    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Failed to sync'); }
+    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Saved locally — cloud sync failed'); }
   }
 
   async function handleAddBurnSession(session) {
@@ -430,7 +434,7 @@ export default function App() {
 
     dispatch({ type: 'addMeal', date: todayKey(), item });
     setToast(`${session.calories} kcal burned and logged`);
-    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Failed to sync workout'); }
+    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Saved locally — cloud sync failed'); }
   }
 
   if (!hydrated || !introDone) {
@@ -441,7 +445,7 @@ export default function App() {
   if (!currentUser) {
     content = <AuthScreen onLogin={handleLogin} onRegister={handleRegister} onToast={setToast} />;
   } else if (!currentUser.profile?.completed) {
-    content = <ProfileSetup user={currentUser} onComplete={handleProfileSave} onLogout={() => dispatch({ type: 'logout' })} />;
+    content = <ProfileSetup user={currentUser} onComplete={handleProfileSave} onLogout={handleLogout} />;
   } else {
     content = (
       <TrackerShell
@@ -479,11 +483,14 @@ export default function App() {
           setToast('AI settings saved');
           try { await apiSaveAiSettings(settings); } catch (err) { console.warn(err); }
         }}
-        onApplyCoachGoals={(goals) => {
-          dispatch({ type: 'saveGoals', goals: { ...state.goals, ...goals } });
+        onApplyCoachGoals={async (coachGoals) => {
+          const nextGoals = { ...state.goals, ...coachGoals };
+          dispatch({ type: 'saveGoals', goals: nextGoals });
           setToast('AI coaching goals applied');
-          setActiveTab('profile');
+          try { await apiSaveGoals(nextGoals); } catch (err) { setToast('Goals saved locally — cloud sync failed'); }
         }}
+        coachMessages={coachMessages}
+        setCoachMessages={setCoachMessages}
         onSaveProfile={handleProfileSave}
       />
     );
@@ -539,12 +546,14 @@ function TrackerShell({
   onSaveAi,
   onApplyCoachGoals,
   onSaveProfile,
+  coachMessages,
+  setCoachMessages,
 }) {
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
       <div className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]">
         <AppHeader user={currentUser} onLogout={onLogout} />
-        <main className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4">
+        <main key={activeTab} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4 animate-tab-in">
           {activeTab === 'dashboard' && (
             <Dashboard
               user={currentUser}
@@ -578,6 +587,7 @@ function TrackerShell({
               aiSettings={aiSettings}
               onResult={setModalResult}
               onToast={setToast}
+              onBack={() => setActiveTab('log')}
             />
           )}
 
@@ -613,6 +623,7 @@ function TrackerShell({
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
               onRemove={onRemoveHistory}
+              onBack={() => setActiveTab('log')}
             />
           )}
 
@@ -2131,7 +2142,7 @@ function ActivityRow({ item, onRemove }) {
   );
 }
 
-function History({ logs, goals, selectedDate, setSelectedDate, onRemove }) {
+function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack }) {
   const dateKeys = useMemo(() => {
     const keys = Object.keys(logs).sort((a, b) => b.localeCompare(a));
     return keys.length ? keys : [todayKey()];
@@ -2148,7 +2159,17 @@ function History({ logs, goals, selectedDate, setSelectedDate, onRemove }) {
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel rounded-[26px] border border-white/10 p-4">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white active:scale-95 animate-rise"
+        >
+          <ChevronLeft size={18} />
+          Back to Log
+        </button>
+      )}
+      <section className="hero-panel animate-rise rounded-[26px] border border-white/10 p-4">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -2273,10 +2294,21 @@ function IdealWeight({ user }) {
 function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, setMessages }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef(null);
+  const quickPrompts = [
+    'What should I eat today?',
+    'How many calories should I target?',
+    'Give me a workout plan',
+    'Help me hit my protein goal',
+  ];
 
-  async function sendMessage(event) {
-    event.preventDefault();
-    const message = input.trim();
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, loading]);
+
+  async function sendMessage(event, presetMessage = '') {
+    event?.preventDefault?.();
+    const message = (presetMessage || input).trim();
     if (!message || loading) return;
 
     const userMessage = { id: uid(), role: 'user', answer: message };
@@ -2284,8 +2316,21 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
     setInput('');
     setLoading(true);
 
+    if (aiSettings.provider === 'offline') {
+      const offline = buildOfflineCoachReply(message, user.profile, goals);
+      setMessages((current) => [...current, {
+        id: uid(),
+        role: 'assistant',
+        answer: offline.answer,
+        suggestedGoals: offline.suggestedGoals,
+        source: offline.source,
+      }]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/coach`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2297,14 +2342,22 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-      setMessages((current) => [...current, { id: uid(), role: 'assistant', answer: data.answer, suggestedGoals: data.suggestedGoals || null }]);
-    } catch (error) {
-      const localGoals = estimateGoalsFromProfile(user.profile || {});
       setMessages((current) => [...current, {
         id: uid(),
         role: 'assistant',
-        answer: `Backend AI is not available yet, so here is a profile-based estimate: ${localGoals.calories} kcal, ${localGoals.protein}g protein, ${localGoals.carbs}g carbs, ${localGoals.fat}g fat. Fill backend/.env to unlock full coaching answers.`,
-        suggestedGoals: localGoals,
+        answer: data.answer,
+        suggestedGoals: data.suggestedGoals || null,
+        source: data.source || 'Sistum AI Coach',
+        warning: data.warning || null,
+      }]);
+    } catch (error) {
+      const offline = buildOfflineCoachReply(message, user.profile, goals);
+      setMessages((current) => [...current, {
+        id: uid(),
+        role: 'assistant',
+        answer: `${offline.answer}\n\n(AI backend unavailable: ${error.message})`,
+        suggestedGoals: offline.suggestedGoals,
+        source: 'Profile coach fallback',
       }]);
       onToast(error.message);
     } finally {
@@ -2314,9 +2367,9 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel rounded-[26px] border border-white/10 p-4">
+      <section className="hero-panel animate-rise rounded-[26px] border border-white/10 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-limeFresh">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-limeFresh animate-float">
             <Bot size={26} />
           </div>
           <div>
@@ -2326,13 +2379,20 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
         </div>
       </section>
 
-      <section className="glass-panel flex min-h-[54vh] flex-col rounded-[22px] p-4">
-        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-          {messages.map((message) => (
-            <div key={message.id} className={`rounded-2xl border p-3 ${message.role === 'user' ? 'ml-8 border-limeFresh/40 bg-limeFresh/10' : 'mr-8 border-white/10 bg-black/25'}`}>
+      <section className="glass-panel animate-rise animate-stagger-1 flex min-h-[54vh] flex-col rounded-[22px] p-4">
+        <div className="no-scrollbar flex-1 space-y-3 overflow-y-auto pr-1">
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              className={`animate-message-in rounded-2xl border p-3 ${message.role === 'user' ? 'ml-8 border-limeFresh/40 bg-limeFresh/10' : 'mr-8 border-white/10 bg-black/25'}`}
+              style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+            >
               <p className="whitespace-pre-wrap text-sm leading-6 text-zinc-200">{message.answer}</p>
+              {message.source && message.role === 'assistant' && (
+                <p className="mt-2 text-[10px] uppercase tracking-wider text-zinc-500">{message.source}</p>
+              )}
               {message.suggestedGoals && (
-                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 animate-pop">
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     <MiniMetric label="Kcal" value={message.suggestedGoals.calories || '-'} />
                     <MiniMetric label="Protein" value={`${message.suggestedGoals.protein || '-'}g`} />
@@ -2341,7 +2401,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
                   <button
                     type="button"
                     onClick={() => onApplyGoals(message.suggestedGoals)}
-                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-limeFresh px-3 text-sm font-bold text-ink"
+                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-limeFresh px-3 text-sm font-bold text-ink transition active:scale-95"
                   >
                     <Target size={16} />
                     Add to my goal
@@ -2349,6 +2409,31 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
                 </div>
               )}
             </div>
+          ))}
+          {loading && (
+            <div className="mr-8 rounded-2xl border border-white/10 bg-black/25 p-3 animate-pop">
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <span className="typing-dot" />
+                <span className="typing-dot" style={{ animationDelay: '120ms' }} />
+                <span className="typing-dot" style={{ animationDelay: '240ms' }} />
+                <span>Coach is thinking...</span>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">
+          {quickPrompts.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => sendMessage(null, prompt)}
+              disabled={loading}
+              className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-limeFresh/40 hover:text-limeFresh active:scale-95 disabled:opacity-50"
+            >
+              {prompt}
+            </button>
           ))}
         </div>
 
@@ -2362,7 +2447,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-limeFresh text-ink disabled:opacity-60"
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-limeFresh text-ink transition active:scale-95 disabled:opacity-60"
             aria-label="Send"
           >
             {loading ? <RefreshCw className="animate-spin" size={19} /> : <Send size={19} />}
@@ -2373,7 +2458,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
   );
 }
 
-function CameraScan({ aiSettings, onResult, onToast }) {
+function CameraScan({ aiSettings, onResult, onToast, onBack }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -2480,7 +2565,7 @@ function CameraScan({ aiSettings, onResult, onToast }) {
     setIsScanning(true);
     setStatus('Reading food...');
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/vision-nutrition`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/vision-nutrition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image, provider: aiSettings.provider }),
@@ -2516,7 +2601,17 @@ function CameraScan({ aiSettings, onResult, onToast }) {
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel rounded-[26px] border border-white/10 p-4">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white active:scale-95 animate-rise"
+        >
+          <ChevronLeft size={18} />
+          Back to Log
+        </button>
+      )}
+      <section className="hero-panel animate-rise rounded-[26px] border border-white/10 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-limeFresh">
             <Camera size={26} />
@@ -3069,18 +3164,19 @@ function GoalInput({ label, value, unit, onChange }) {
 }
 
 function BottomNav({ activeTab, setActiveTab }) {
+  const navActiveTab = activeTab === 'scan' || activeTab === 'history' ? 'log' : activeTab;
   return (
-    <nav className="absolute bottom-6 left-4 right-4 z-30 rounded-[32px] border border-white/5 bg-[#0a1411]/80 px-2 py-2 shadow-2xl backdrop-blur-2xl">
+    <nav className="absolute bottom-6 left-4 right-4 z-30 rounded-[32px] border border-white/5 bg-[#0a1411]/80 px-2 py-2 shadow-2xl backdrop-blur-2xl animate-rise">
       <div className="flex justify-between gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = activeTab === item.id;
+          const active = navActiveTab === item.id;
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex h-12 flex-1 flex-col items-center justify-center gap-1 rounded-[20px] text-[10px] font-medium transition active:scale-95 ${active ? 'bg-white/10 text-limeFresh' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex h-12 flex-1 flex-col items-center justify-center gap-1 rounded-[20px] text-[10px] font-medium transition-all duration-300 active:scale-95 ${active ? 'bg-white/10 text-limeFresh scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}
               aria-label={item.label}
             >
               <Icon size={20} strokeWidth={active ? 2.5 : 2} />
@@ -3095,7 +3191,7 @@ function BottomNav({ activeTab, setActiveTab }) {
 
 function Toast({ message }) {
   return (
-    <div className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-white/10 bg-[#0b1713] px-4 py-3 text-sm text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
+    <div className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-white/10 bg-[#0b1713] px-4 py-3 text-sm text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.55)] animate-toast-in">
       {message}
     </div>
   );

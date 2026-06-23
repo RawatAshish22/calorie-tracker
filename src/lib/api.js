@@ -2,6 +2,10 @@
 const TOKEN_KEY = 'sistum-auth-token';
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
+export function getApiBaseUrl() {
+  return API_BASE_URL;
+}
+
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }

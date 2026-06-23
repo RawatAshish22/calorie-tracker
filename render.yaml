@@ -28,5 +28,7 @@ services:
         value: "meta-llama/llama-3.2-11b-vision-instruct:free"
       - key: CACHE_TTL_HOURS
         value: 168
-      - key: VISION_SCAN_INTERVAL_MS
-        value: 4500
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false

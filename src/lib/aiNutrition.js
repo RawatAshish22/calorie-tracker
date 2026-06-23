@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from './api.js';
 import { estimateNutrition, normalizeNutrition } from './nutritionMath.js';
 
 export async function lookupNutrition(query, settings = {}) {
@@ -5,7 +6,7 @@ export async function lookupNutrition(query, settings = {}) {
   if (local.confidence !== 'low' || settings.provider === 'offline') return local;
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/nutrition`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/nutrition`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

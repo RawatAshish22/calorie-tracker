@@ -60,12 +60,12 @@ app.use((_request, response, next) => {
 });
 
 // MongoDB Connection
-if (process.env.MONGODB_URI && process.env.MONGODB_URI.includes('cluster')) {
+if (process.env.MONGODB_URI) {
   mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ Connected to MongoDB Atlas'))
+    .then(() => console.log('✅ Connected to MongoDB'))
     .catch((err) => console.error('❌ MongoDB connection error:', err.message));
 } else {
-  console.warn('⚠️ No valid MONGODB_URI found. Auth and data sync features will fail until configured.');
+  console.warn('⚠️ MONGODB_URI not set. Auth and data sync features will fail until configured.');
 }
 
 app.get('/api/health', (_request, response) => {
@@ -235,9 +235,13 @@ function getCacheTtlMs() {
 }
 
 function providerOrder(provider, mode) {
-  if (provider !== 'auto') return [provider];
-  if (mode === 'coach') return ['gemini', 'openrouter', 'cloudflare'];
-  return mode === 'vision' ? ['gemini', 'cloudflare', 'openrouter'] : ['cloudflare', 'gemini', 'openrouter'];
+  const defaults = mode === 'coach'
+    ? ['gemini', 'openrouter', 'cloudflare']
+    : mode === 'vision'
+      ? ['gemini', 'cloudflare', 'openrouter']
+      : ['cloudflare', 'gemini', 'openrouter'];
+  if (provider === 'auto' || provider === 'offline') return defaults;
+  return [provider, ...defaults.filter((item) => item !== provider)];
 }
 
 async function callBestTextProvider(prompt, provider, mode) {
@@ -590,10 +594,15 @@ function estimateGoalsFromProfile(profile = {}) {
   };
 }
 
+function profileDietLabel(profile = {}) {
+  return String(profile.dietPreference || profile.diet || '').toLowerCase();
+}
+
 function buildCoachAnswer(message, profile = {}, aiAnswer, suggestedGoals) {
   const answer = cleanCoachText(aiAnswer);
+  const isCasual = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|cool|great)[!.?\s]*$/i.test(message.trim());
   const tooVague = !answer
-    || answer.length < 80
+    || (!isCasual && answer.length < 24)
     || /consult.*(professional|dietitian|doctor)/i.test(answer)
     || /\bas an ai\b/i.test(answer);
 
@@ -650,7 +659,7 @@ function buildFoodPlanAnswer(profile = {}, goals = {}) {
   const proteinText = protein ? `${protein}g protein` : 'high protein';
   const carbText = carbs ? `${carbs}g carbs` : 'enough carbs for training';
   const fatText = fat ? `${fat}g fat` : 'moderate fats';
-  const isVegetarian = /veg|vegetarian/i.test(profile.diet || '');
+  const isVegetarian = /veg|vegetarian/i.test(profileDietLabel(profile));
   const proteinOptions = isVegetarian
     ? 'paneer 150g, tofu 200g, dal 1.5 bowls, Greek yogurt or curd 250g, milk 300ml, whey 1 scoop, sprouts 1 bowl'
     : 'eggs 3 whole plus 2 whites, chicken breast 180g, fish 180g, paneer 120g, Greek yogurt or curd 250g, whey 1 scoop, milk 300ml';
