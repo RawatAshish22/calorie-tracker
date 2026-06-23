@@ -602,7 +602,7 @@ function buildCoachAnswer(message, profile = {}, aiAnswer, suggestedGoals) {
   const answer = cleanCoachText(aiAnswer);
   const isCasual = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|cool|great)[!.?\s]*$/i.test(message.trim());
   const tooVague = !answer
-    || (!isCasual && answer.length < 24)
+    || (!isCasual && answer.length < 80)
     || /consult.*(professional|dietitian|doctor)/i.test(answer)
     || /\bas an ai\b/i.test(answer);
 
