@@ -38,6 +38,7 @@ import {
   Upload,
   User,
   UserPlus,
+  Users,
   Utensils,
   X,
 } from 'lucide-react';
@@ -58,8 +59,16 @@ import {
   apiForgotPassword,
   apiResetPassword,
   getApiBaseUrl,
+  apiGetGroups,
+  apiCreateGroup,
+  apiJoinGroup,
+  apiJoinGroupByToken,
+  apiGetGroupFeed,
+  apiPostGroupActivity,
+  apiLeaveGroup,
 } from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
+import Groups from './Groups.jsx';
 import {
   addTotals,
   buildSmartTip,
@@ -85,8 +94,8 @@ const navItems = [
   { id: 'dashboard', label: 'Today', icon: Home },
   { id: 'log', label: 'Log', icon: Search },
   { id: 'burn', label: 'Burn', icon: Flame },
+  { id: 'groups', label: 'Groups', icon: Users },
   { id: 'coach', label: 'Coach', icon: Bot },
-  { id: 'ideal', label: 'Ideal', icon: Gauge },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
@@ -125,8 +134,7 @@ const activityMultipliers = {
 };
 
 const exerciseModes = [
-  { id: 'walk', label: 'Walk', icon: Footprints, met: 3.8, speed: 4.8, maxSpeed: 8, minMoveSpeed: 1.2, color: '#4dd5c4' },
-  { id: 'run', label: 'Run', icon: Activity, met: 8.6, speed: 8.5, maxSpeed: 18, minMoveSpeed: 4.0, color: '#b7f34a' },
+  { id: 'walk-run', label: 'Walk/Run', icon: Activity, met: 4.5, speed: 6, maxSpeed: 22, minMoveSpeed: 1.0, color: '#b7f34a', walkMet: 3.8, runMet: 8.6, runSpeedThreshold: 6 },
   { id: 'cycle', label: 'Cycle', icon: Bike, met: 7.5, speed: 18, maxSpeed: 36, minMoveSpeed: 5.0, color: '#00f0ff' },
   { id: 'gym', label: 'Gym', icon: Dumbbell, met: 6.0, speed: 0, maxSpeed: 10, color: '#ffea00' },
   { id: 'hiit', label: 'HIIT', icon: Flame, met: 9.0, speed: 0, maxSpeed: 10, color: '#ff3366' },
@@ -258,6 +266,7 @@ export default function App() {
       suggestedGoals: null,
     },
   ]);
+  const [userGroups, setUserGroups] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -280,6 +289,8 @@ export default function App() {
             logs: mergedLogs,
           },
         });
+        // Load groups in background
+        try { const groups = await apiGetGroups(); if (mounted) setUserGroups(groups); } catch {}
       }
       if (mounted) setHydrated(true);
     }
@@ -435,6 +446,18 @@ export default function App() {
     dispatch({ type: 'addMeal', date: todayKey(), item });
     setToast(`${session.calories} kcal burned and logged`);
     try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Saved locally — cloud sync failed'); }
+
+    // Auto-post to all joined groups silently
+    userGroups.forEach((group) => {
+      apiPostGroupActivity(group.id, {
+        modeId: session.modeId,
+        modeName: session.name,
+        calories: session.calories,
+        elapsedSeconds: session.elapsedSeconds,
+        distanceKm: session.distanceKm,
+        summary: session.summary,
+      }).catch(() => {});
+    });
   }
 
   if (!hydrated || !introDone) {
@@ -492,6 +515,8 @@ export default function App() {
         coachMessages={coachMessages}
         setCoachMessages={setCoachMessages}
         onSaveProfile={handleProfileSave}
+        userGroups={userGroups}
+        setUserGroups={setUserGroups}
       />
     );
   }
@@ -548,6 +573,8 @@ function TrackerShell({
   onSaveProfile,
   coachMessages,
   setCoachMessages,
+  userGroups,
+  setUserGroups,
 }) {
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
@@ -609,6 +636,15 @@ function TrackerShell({
               goals={goals}
               totals={todayTotals}
               onComplete={onAddBurnSession}
+            />
+          )}
+
+          {activeTab === 'groups' && (
+            <Groups
+              user={currentUser}
+              userGroups={userGroups}
+              setUserGroups={setUserGroups}
+              onToast={setToast}
             />
           )}
 
@@ -1145,7 +1181,7 @@ function BurnTargetPanel({ totals, goals, onBurn }) {
 function WorkoutBurn({ user, goals, totals, onComplete }) {
   const profile = user.profile || {};
   const weightKg = Number(profile.weightKg || 70);
-  const [modeId, setModeId] = useState('walk');
+  const [modeId, setModeId] = useState('walk-run');
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(0);
@@ -1383,7 +1419,7 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Session type</h3>
           <span className="text-xs text-zinc-500">{weightKg} kg profile weight</span>
         </div>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {exerciseModes.map((item) => {
             const Icon = item.icon;
             const active = item.id === mode.id;
@@ -1503,6 +1539,17 @@ function SpeedometerGauge({ value, label, sublabel, needle = false }) {
 function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed }) {
   const minutes = Math.max(0, Number(elapsedSeconds || 0)) / 60;
   const currentSpeed = Number(speed || 0);
+
+  if (mode.id === 'walk-run') {
+    if (currentSpeed < Number(mode.minMoveSpeed || 1.0)) return 0;
+    const isRunning = currentSpeed >= Number(mode.runSpeedThreshold || 6);
+    const baseMet = isRunning ? Number(mode.runMet || 8.6) : Number(mode.walkMet || 3.8);
+    const baseSpeed = isRunning ? 8.5 : 4.8; // Standard speeds for these METs
+    const speedBoost = Math.max(0.75, Math.min(1.45, currentSpeed / baseSpeed));
+    const met = baseMet * speedBoost;
+    return roundMetric((met * 3.5 * Number(weightKg || 70) * minutes) / 200, 1);
+  }
+
   if (mode.speed > 0) {
     if (currentSpeed < Number(mode.minMoveSpeed || 0)) return 0;
     const speedBoost = Math.max(0.75, Math.min(1.45, currentSpeed / mode.speed));
@@ -2541,6 +2588,8 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
   function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
+    if (active) stopCamera(); // Stop camera so the uploaded image becomes visible
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -2679,7 +2728,11 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-          {uploadedImage ? (
+          {scanResult ? (
+            <button type="button" onClick={clearScan} disabled={isScanning} className="h-11 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 text-sm font-bold text-rose-400 disabled:opacity-50 hover:bg-rose-500/20">
+              Discard Result
+            </button>
+          ) : uploadedImage ? (
             <button type="button" onClick={clearScan} disabled={isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
               Clear Image
             </button>
@@ -2688,7 +2741,7 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
               {isScanning ? 'Scanning...' : 'Capture Now'}
             </button>
           )}
-          <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className="h-11 rounded-xl border border-limeFresh px-3 text-sm font-bold text-limeFresh disabled:opacity-50">
+          <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className="h-11 rounded-xl border border-limeFresh px-3 text-sm font-bold text-limeFresh disabled:opacity-50 bg-limeFresh/10 hover:bg-limeFresh/20">
             Log Result
           </button>
         </div>

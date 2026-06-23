@@ -163,3 +163,56 @@ export async function apiRemoveMeal(date, mealId) {
     method: 'DELETE',
   });
 }
+
+// ── Groups API ─────────────────────────────────────────────────────
+
+/** Create a new group with the given name. */
+export async function apiCreateGroup(name) {
+  const data = await apiFetch('/api/groups', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  return data.group;
+}
+
+/** Get all groups the current user belongs to. */
+export async function apiGetGroups() {
+  const data = await apiFetch('/api/groups');
+  return data.groups;
+}
+
+/** Join a group by its 6-character code. */
+export async function apiJoinGroup(code) {
+  const data = await apiFetch('/api/groups/join', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  return data.group;
+}
+
+/** Join a group via its invite link token. */
+export async function apiJoinGroupByToken(token) {
+  const data = await apiFetch(`/api/groups/join-link/${token}`);
+  return data.group;
+}
+
+/** Get the full feed for a group (members + recent activity). */
+export async function apiGetGroupFeed(groupId) {
+  const data = await apiFetch(`/api/groups/${groupId}`);
+  return data.group;
+}
+
+/** Post a burn session to a group's activity feed. */
+export async function apiPostGroupActivity(groupId, session) {
+  return apiFetch(`/api/groups/${groupId}/activity`, {
+    method: 'POST',
+    body: JSON.stringify(session),
+  });
+}
+
+/** Leave a group. */
+export async function apiLeaveGroup(groupId) {
+  return apiFetch(`/api/groups/${groupId}/leave`, {
+    method: 'DELETE',
+  });
+}
