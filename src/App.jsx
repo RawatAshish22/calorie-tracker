@@ -1137,19 +1137,23 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
   const [modeId, setModeId] = useState('walk');
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
-  const [speed, setSpeed] = useState(exerciseModes[0].speed);
+  const [speed, setSpeed] = useState(0);
   const [sessionCalories, setSessionCalories] = useState(0);
   const [distanceKm, setDistanceKm] = useState(0);
   const [lastSession, setLastSession] = useState(null);
   const timerRef = useRef(null);
   const gpsWatchRef = useRef(null);
   const lastPositionRef = useRef(null);
+  const speedRef = useRef(0);
+  const modeRef = useRef(exerciseModes[0]);
   const [gpsActive, setGpsActive] = useState(false);
-  const [gpsStatus, setGpsStatus] = useState('Manual speed');
+  const [gpsStatus, setGpsStatus] = useState('GPS ready');
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
 
   const mode = exerciseModes.find((item) => item.id === modeId) || exerciseModes[0];
-  const isMoving = mode.speed <= 0 || !gpsActive || speed >= Number(mode.minMoveSpeed || 0);
+  const isGpsMode = mode.speed > 0;
+  const minMoveSpeed = Number(mode.minMoveSpeed || 0);
+  const isMoving = !isGpsMode || speed >= minMoveSpeed;
   const effectiveSpeed = isMoving ? speed : 0;
   const liveCalories = sessionCalories;
   const target = Number(goals.burnCalories || 0);
@@ -1157,78 +1161,129 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
   const afterSessionBurned = alreadyBurned + liveCalories;
   const remaining = Math.max(0, target - afterSessionBurned);
   const progress = target > 0 ? goalProgress(afterSessionBurned, target) : 0;
-  const speedLabel = mode.speed > 0 ? `${roundMetric(effectiveSpeed, 1)} km/h` : `${roundMetric(speed, 1)} intensity`;
+  const speedLabel = isGpsMode ? `${roundMetric(effectiveSpeed, 1)} km/h` : `${mode.label} timer`;
   const ModeIcon = mode.icon;
+
+  modeRef.current = mode;
 
   useEffect(() => {
     window.clearInterval(timerRef.current);
     if (!running) return undefined;
     timerRef.current = window.setInterval(() => {
+      const activeMode = modeRef.current;
+      const currentSpeed = speedRef.current;
       setElapsed((value) => value + 1);
-      setSessionCalories((value) => roundMetric(value + estimateExerciseCalories({ mode, weightKg, elapsedSeconds: 1, speed: effectiveSpeed, gpsActive }), 1));
-      if (mode.speed > 0 && effectiveSpeed > 0) {
-        setDistanceKm((value) => roundMetric(value + effectiveSpeed / 3600, 3));
-      }
+      setSessionCalories((value) => roundMetric(
+        value + estimateExerciseCalories({
+          mode: activeMode,
+          weightKg,
+          elapsedSeconds: 1,
+          speed: activeMode.speed > 0 ? currentSpeed : activeMode.met,
+        }),
+        1,
+      ));
     }, 1000);
     return () => window.clearInterval(timerRef.current);
-  }, [effectiveSpeed, gpsActive, mode, running, weightKg]);
+  }, [running, weightKg]);
 
   useEffect(() => {
-    setSpeed(mode.speed || 5);
+    speedRef.current = 0;
+    setSpeed(0);
     setSessionCalories(0);
     setDistanceKm(0);
     setElapsed(0);
-    if (mode.speed <= 0) stopGps();
+    setRunning(false);
+    stopGps();
   }, [modeId]);
 
   useEffect(() => () => stopGps(), []);
 
-  function startGps() {
-    if (!mode.speed) {
-      setGpsStatus('GPS speed is for walk, run, and cycle modes');
-      return;
+  function resetSessionState() {
+    setRunning(false);
+    setElapsed(0);
+    setSessionCalories(0);
+    setDistanceKm(0);
+    speedRef.current = 0;
+    setSpeed(0);
+    stopGps();
+  }
+
+  async function startGps() {
+    if (!isGpsMode) {
+      setGpsStatus('Timer mode active');
+      return true;
     }
     if (!window.isSecureContext || !navigator.geolocation) {
-      setGpsStatus('GPS speed needs HTTPS; manual speed is active');
-      return;
+      setGpsStatus('GPS needs HTTPS on mobile');
+      return false;
     }
 
-    setGpsStatus('Finding GPS speed...');
+    setGpsStatus('Requesting location access...');
+    speedRef.current = 0;
     setSpeed(0);
     lastPositionRef.current = null;
+    try {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000,
+        });
+      });
+    } catch (error) {
+      setGpsStatus(getGpsErrorMessage(error));
+      return false;
+    }
+
+    if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (position) => {
+        const activeMode = modeRef.current;
         const current = {
           lat: position.coords.latitude,
           lon: position.coords.longitude,
           time: position.timestamp,
         };
-        setGpsAccuracy(Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : null);
-        if (Number.isFinite(position.coords.accuracy) && position.coords.accuracy > 80) {
-          setSpeed(0);
-          setGpsStatus('Waiting for better GPS precision');
-          lastPositionRef.current = null;
-          return;
+        const accuracy = Number(position.coords.accuracy);
+        setGpsAccuracy(Number.isFinite(accuracy) ? Math.round(accuracy) : null);
+
+        if (lastPositionRef.current) {
+          const segmentKm = distanceBetweenKm(lastPositionRef.current, current);
+          if (segmentKm > 0.0005 && segmentKm < 0.25) {
+            setDistanceKm((value) => roundMetric(value + segmentKm, 3));
+          }
         }
+
+        const lowAccuracy = Number.isFinite(accuracy) && accuracy > 150;
         const directSpeed = Number(position.coords.speed);
         let nextSpeed = Number.isFinite(directSpeed) && directSpeed > 0 ? directSpeed * 3.6 : 0;
-        if (!nextSpeed && lastPositionRef.current) {
-          const distanceKm = distanceBetweenKm(lastPositionRef.current, current);
+        if (!nextSpeed && lastPositionRef.current && !lowAccuracy) {
+          const segmentKm = distanceBetweenKm(lastPositionRef.current, current);
           const hours = Math.max(0.0001, (current.time - lastPositionRef.current.time) / 3600000);
-          nextSpeed = distanceKm / hours;
+          nextSpeed = segmentKm / hours;
         }
+
         lastPositionRef.current = current;
-        const cleanSpeed = nextSpeed >= Number(mode.minMoveSpeed || 0) ? roundMetric(nextSpeed, 1) : 0;
-        setSpeed(Math.min(mode.maxSpeed, cleanSpeed));
-        setGpsStatus(cleanSpeed > 0 ? 'GPS speed live' : 'Still detected; no calories burning');
+        const minSpeed = Number(activeMode.minMoveSpeed || 0);
+        const cleanSpeed = nextSpeed >= minSpeed ? roundMetric(nextSpeed, 1) : 0;
+        const cappedSpeed = Math.min(activeMode.maxSpeed, cleanSpeed);
+        speedRef.current = cappedSpeed;
+        setSpeed(cappedSpeed);
+        if (lowAccuracy && cappedSpeed === 0) {
+          setGpsStatus('Waiting for better GPS precision');
+        } else {
+          setGpsStatus(cappedSpeed > 0 ? 'GPS speed live' : 'Still detected; burn paused until you move');
+        }
       },
-      () => {
-        setGpsStatus('GPS unavailable; manual speed is active');
+      (error) => {
+        setGpsStatus(getGpsErrorMessage(error));
         stopGps();
       },
-      { enableHighAccuracy: true, maximumAge: 1500, timeout: 8000 },
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
     );
     setGpsActive(true);
+    setGpsStatus('GPS tracking active');
+    return true;
   }
 
   function stopGps() {
@@ -1237,20 +1292,30 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
     lastPositionRef.current = null;
     setGpsAccuracy(null);
     setGpsActive(false);
-    setGpsStatus('Manual speed');
-    if (mode.speed > 0) setSpeed(mode.speed);
+    setGpsStatus(isGpsMode ? 'GPS ready' : 'Timer mode active');
+    speedRef.current = 0;
+    if (isGpsMode) setSpeed(0);
   }
 
-  function startPauseSession() {
-    if (!running && mode.speed > 0 && !gpsActive && window.isSecureContext && navigator.geolocation) {
-      startGps();
+  async function startPauseSession() {
+    if (running) {
+      setRunning(false);
+      if (isGpsMode) stopGps();
+      return;
     }
-    setRunning((value) => !value);
+
+    if (isGpsMode) {
+      const gpsStarted = await startGps();
+      if (!gpsStarted) return;
+    }
+    setRunning(true);
   }
 
   function endSession() {
-    if (elapsed < 10 || liveCalories < 1) {
-      setRunning(false);
+    if (elapsed < 1) return;
+
+    if (elapsed < 5 && liveCalories < 1) {
+      resetSessionState();
       return;
     }
 
@@ -1261,16 +1326,14 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
       elapsedSeconds: elapsed,
       speed: effectiveSpeed,
       distanceKm: roundMetric(distanceKm, 2),
-      summary: `${formatDuration(elapsed)} • ${roundMetric(distanceKm, 2)} km • ${speedLabel}`,
+      summary: isGpsMode
+        ? `${formatDuration(elapsed)} • ${roundMetric(distanceKm, 2)} km • ${speedLabel}`
+        : `${formatDuration(elapsed)} • ${mode.label}`,
       completedAt: new Date().toISOString(),
     };
     onComplete(session);
     setLastSession(session);
-    setRunning(false);
-    setElapsed(0);
-    setSessionCalories(0);
-    setDistanceKm(0);
-    stopGps();
+    resetSessionState();
   }
 
   return (
@@ -1293,11 +1356,11 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <HeroChip label="Time" value={formatDuration(elapsed)} />
-          <HeroChip label={mode.speed > 0 ? 'Speed' : 'Effort'} value={speedLabel} />
+          <HeroChip label={isGpsMode ? 'Speed' : 'Mode'} value={speedLabel} />
           <HeroChip label="Distance" value={`${roundMetric(distanceKm, 2)} km`} />
           <HeroChip label="Left" value={`${roundMetric(remaining, 0)} kcal`} />
         </div>
-        {mode.speed > 0 && gpsActive && !isMoving && (
+        {isGpsMode && gpsActive && running && !isMoving && (
           <p className="mt-3 animate-pop rounded-2xl border border-sun/20 bg-sun/10 px-3 py-2 text-center text-xs font-bold text-sun">
             Still detected. Timer can run, but calorie burn is paused until you move.
           </p>
@@ -1329,35 +1392,18 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-400">{mode.speed > 0 ? 'Live speed' : 'Training intensity'}</span>
+            <span className="text-zinc-400">{isGpsMode ? 'Live speed' : 'Session mode'}</span>
             <span className="font-black text-white">{speedLabel}</span>
           </div>
-          {mode.speed > 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] p-2">
-              <span className="min-w-0 truncate text-xs text-zinc-400">
-                {gpsStatus}{gpsAccuracy ? ` • ±${gpsAccuracy}m` : ''}
-              </span>
-              <button
-                type="button"
-                onClick={gpsActive ? stopGps : startGps}
-                className={`h-9 shrink-0 rounded-xl px-3 text-xs font-black transition active:scale-95 ${gpsActive ? 'bg-white/10 text-white' : 'bg-limeFresh text-ink'}`}
-              >
-                {gpsActive ? 'Manual' : 'GPS speed'}
-              </button>
+          {isGpsMode && (
+            <div className="mt-3 rounded-xl bg-white/[0.04] p-2 text-xs text-zinc-400">
+              {gpsStatus}{gpsAccuracy ? ` • ±${gpsAccuracy}m` : ''}
             </div>
           )}
-          <input
-            type="range"
-            min={mode.speed > 0 ? 1 : 1}
-            max={mode.maxSpeed}
-            step="0.1"
-            value={speed}
-            onChange={(event) => setSpeed(Number(event.target.value))}
-            disabled={gpsActive}
-            className="mt-3 w-full accent-limeFresh disabled:opacity-40"
-          />
           <p className="mt-2 text-xs leading-5 text-zinc-500">
-            Calories and distance accumulate second by second. If GPS detects stillness, burn pauses instead of resetting.
+            {isGpsMode
+              ? 'Start uses GPS automatically. Calories and distance update from your live movement.'
+              : 'Timer-based burn uses your selected workout type. Start the session to begin counting.'}
           </p>
         </div>
 
@@ -1373,7 +1419,7 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           <button
             type="button"
             onClick={endSession}
-            disabled={elapsed < 10}
+            disabled={elapsed < 1}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-black text-white transition active:scale-95 disabled:opacity-40"
           >
             <Square size={17} />
@@ -1443,14 +1489,16 @@ function SpeedometerGauge({ value, label, sublabel, needle = false }) {
   );
 }
 
-function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed, gpsActive = false }) {
+function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed }) {
   const minutes = Math.max(0, Number(elapsedSeconds || 0)) / 60;
   const currentSpeed = Number(speed || 0);
-  if (mode.speed > 0 && currentSpeed < Number(mode.minMoveSpeed || 0)) return 0;
-  const speedBoost = mode.speed > 0 && mode.speed
-    ? Math.max(gpsActive ? 0 : 0.75, Math.min(1.45, currentSpeed / mode.speed))
-    : Math.max(0.7, Math.min(1.5, Number(speed || 5) / 5));
-  const met = Number(mode.met || 4) * speedBoost;
+  if (mode.speed > 0) {
+    if (currentSpeed < Number(mode.minMoveSpeed || 0)) return 0;
+    const speedBoost = Math.max(0.75, Math.min(1.45, currentSpeed / mode.speed));
+    const met = Number(mode.met || 4) * speedBoost;
+    return roundMetric((met * 3.5 * Number(weightKg || 70) * minutes) / 200, 1);
+  }
+  const met = Number(mode.met || 4);
   return roundMetric((met * 3.5 * Number(weightKg || 70) * minutes) / 200, 1);
 }
 
@@ -2573,6 +2621,14 @@ function getCameraErrorMessage(error) {
   if (error?.name === 'NotFoundError') return 'No camera was found on this device';
   if (error?.name === 'NotReadableError') return 'Camera is already in use by another app';
   return error?.message || 'Camera permission failed';
+}
+
+function getGpsErrorMessage(error) {
+  if (!window.isSecureContext) return 'GPS needs HTTPS on mobile browsers';
+  if (error?.code === 1 || error?.name === 'NotAllowedError') return 'Location permission was denied';
+  if (error?.code === 2 || error?.name === 'PositionUnavailableError') return 'GPS signal unavailable';
+  if (error?.code === 3 || error?.name === 'TimeoutError') return 'GPS timed out — try again outdoors';
+  return error?.message || 'GPS permission failed';
 }
 
 function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSaveProfile }) {
