@@ -1,6 +1,6 @@
 import { defaultGoals, quickFoods } from '../data/foods.js';
 
-const numberFields = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium', 'water'];
+const numberFields = ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium', 'water', 'burnedCalories'];
 
 export function todayKey(date = new Date()) {
   const year = date.getFullYear();
@@ -179,5 +179,7 @@ export function clampGoalDraft(goals) {
     fiber: Math.max(5, Number(goals.fiber || defaultGoals.fiber)),
     sugar: Math.max(5, Number(goals.sugar || defaultGoals.sugar)),
     sodium: Math.max(500, Number(goals.sodium || defaultGoals.sodium)),
+    water: Math.max(0.5, Number(goals.water || defaultGoals.water)),
+    burnCalories: Math.max(0, Number(goals.burnCalories || defaultGoals.burnCalories)),
   };
 }

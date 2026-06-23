@@ -39,6 +39,7 @@ const userSchema = new mongoose.Schema(
       sugar: { type: Number, default: 50 },
       sodium: { type: Number, default: 2300 },
       water: { type: Number, default: 2.5 },
+      burnCalories: { type: Number, default: 300 },
     },
 
     aiSettings: {

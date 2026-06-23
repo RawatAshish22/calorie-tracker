@@ -1,5 +1,6 @@
 // ── Token management ────────────────────────────────────────────────
 const TOKEN_KEY = 'sistum-auth-token';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -22,7 +23,7 @@ async function apiFetch(path, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 
   // Session expired – clear stale token
   if (res.status === 401) {

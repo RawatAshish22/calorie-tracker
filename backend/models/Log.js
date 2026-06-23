@@ -13,6 +13,7 @@ const logSchema = new mongoose.Schema(
     items: [
       {
         id: String,
+        type: String,
         mealType: String,
         foodId: String,
         name: String,
@@ -25,8 +26,11 @@ const logSchema = new mongoose.Schema(
           fiber: Number,
           sugar: Number,
           sodium: Number,
+          water: Number,
+          burnedCalories: Number,
           vitamins: mongoose.Schema.Types.Mixed,
         },
+        exercise: mongoose.Schema.Types.Mixed,
         source: String,
         notes: String,
         createdAt: String,

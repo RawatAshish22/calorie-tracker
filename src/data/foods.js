@@ -468,6 +468,7 @@ export const defaultGoals = {
   sugar: 50,
   sodium: 2300,
   water: 2.5,
+  burnCalories: 300,
 };
 
 export const defaultAiSettings = {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   Activity,
+  Bike,
   Bot,
   CalendarDays,
   Camera,
@@ -8,7 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Droplet,
+  Dumbbell,
   Flame,
+  Footprints,
   Gauge,
   Home,
   Lock,
@@ -16,7 +19,9 @@ import {
   LogOut,
   Mail,
   Minus,
+  Pause,
   Plus,
+  Play,
   RefreshCw,
   Ruler,
   Save,
@@ -27,6 +32,7 @@ import {
   ShieldCheck,
   ShoppingBasket,
   Sparkles,
+  Square,
   Target,
   Trash2,
   Upload,
@@ -77,6 +83,7 @@ const initialState = {
 const navItems = [
   { id: 'dashboard', label: 'Today', icon: Home },
   { id: 'log', label: 'Log', icon: Search },
+  { id: 'burn', label: 'Burn', icon: Flame },
   { id: 'coach', label: 'Coach', icon: Bot },
   { id: 'ideal', label: 'Ideal', icon: Gauge },
   { id: 'profile', label: 'Profile', icon: User },
@@ -115,6 +122,14 @@ const activityMultipliers = {
   high: 1.65,
   athlete: 1.85,
 };
+
+const exerciseModes = [
+  { id: 'walk', label: 'Walk', icon: Footprints, met: 3.8, speed: 4.8, maxSpeed: 8, color: '#4dd5c4' },
+  { id: 'run', label: 'Run', icon: Activity, met: 8.6, speed: 8.5, maxSpeed: 18, color: '#b7f34a' },
+  { id: 'cycle', label: 'Cycle', icon: Bike, met: 7.5, speed: 18, maxSpeed: 36, color: '#00f0ff' },
+  { id: 'gym', label: 'Gym', icon: Dumbbell, met: 6.0, speed: 0, maxSpeed: 10, color: '#ffea00' },
+  { id: 'hiit', label: 'HIIT', icon: Flame, met: 9.0, speed: 0, maxSpeed: 10, color: '#ff3366' },
+];
 
 function getFoodVisual(foodId) {
   return foodVisuals[foodId] || { type: 'bowl', bg: '#14241f', plate: '#eafff2', fill: '#3ee681', accent: '#f0b849' };
@@ -389,6 +404,35 @@ export default function App() {
     try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Failed to sync'); }
   }
 
+  async function handleAddBurnSession(session) {
+    const item = {
+      id: uid(),
+      type: 'exercise',
+      mealType: 'Exercise',
+      foodId: session.modeId || 'exercise',
+      name: session.name,
+      quantity: session.summary,
+      nutrition: {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        sugar: 0,
+        sodium: 0,
+        water: 0,
+        burnedCalories: session.calories,
+      },
+      exercise: session,
+      source: 'Workout burn session',
+      createdAt: new Date().toISOString(),
+    };
+
+    dispatch({ type: 'addMeal', date: todayKey(), item });
+    setToast(`${session.calories} kcal burned and logged`);
+    try { await apiAddMeal(todayKey(), item); } catch (err) { setToast('Failed to sync workout'); }
+  }
+
   if (!hydrated || !introDone) {
     return <SplashScreen onDone={() => setIntroDone(true)} />;
   }
@@ -416,6 +460,7 @@ export default function App() {
         setToast={setToast}
         onLogout={() => setShowLogoutConfirm(true)}
         onLogWater={handleLogWater}
+        onAddBurnSession={handleAddBurnSession}
         onRemoveToday={async (id) => {
           dispatch({ type: 'removeMeal', date: todayKey(), id });
           try { await apiRemoveMeal(todayKey(), id); } catch (err) { setToast('Failed to sync delete'); }
@@ -487,6 +532,7 @@ function TrackerShell({
   setToast,
   onLogout,
   onLogWater,
+  onAddBurnSession,
   onRemoveToday,
   onRemoveHistory,
   onSaveGoals,
@@ -509,6 +555,7 @@ function TrackerShell({
               onRemove={onRemoveToday}
               onLog={() => setActiveTab('log')}
               onLogWater={onLogWater}
+              onBurn={() => setActiveTab('burn')}
             />
           )}
 
@@ -543,6 +590,15 @@ function TrackerShell({
               onToast={setToast}
               messages={coachMessages}
               setMessages={setCoachMessages}
+            />
+          )}
+
+          {activeTab === 'burn' && (
+            <WorkoutBurn
+              user={currentUser}
+              goals={goals}
+              totals={todayTotals}
+              onComplete={onAddBurnSession}
             />
           )}
 
@@ -949,7 +1005,7 @@ function GlowingRing({ progress }) {
   );
 }
 
-function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLogWater }) {
+function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLogWater, onBurn }) {
   const profile = user.profile || {};
   const remaining = Math.max(0, goals.calories - totals.calories);
   const progress = goalProgress(totals.calories, goals.calories);
@@ -986,6 +1042,8 @@ function Dashboard({ user, goals, items, totals, smartTip, onRemove, onLog, onLo
       </section>
 
       <MacroSummary totals={totals} goals={goals} />
+
+      <BurnTargetPanel totals={totals} goals={goals} onBurn={onBurn} />
 
       <WaterTracker totals={totals} goals={goals} onLogWater={onLogWater} />
 
@@ -1035,6 +1093,343 @@ function MacroSummary({ totals, goals }) {
       </div>
     </section>
   );
+}
+
+function BurnTargetPanel({ totals, goals, onBurn }) {
+  const target = Number(goals.burnCalories || 0);
+  const burned = Number(totals.burnedCalories || 0);
+  const remaining = Math.max(0, target - burned);
+  const progress = target > 0 ? goalProgress(burned, target) : 0;
+
+  return (
+    <section className="animate-rise animate-stagger-3 overflow-hidden rounded-[32px] border border-limeFresh/15 bg-gradient-to-br from-limeFresh/10 via-white/[0.03] to-aqua/10 p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-limeFresh">
+            <Flame size={18} />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-white">Burn target</h2>
+          </div>
+          <p className="mt-2 text-3xl font-black text-white">{roundMetric(remaining, 0)} kcal</p>
+          <p className="text-sm text-zinc-400">left to burn today</p>
+        </div>
+        <div className="relative h-24 w-24">
+          <SpeedometerGauge value={progress} label={`${roundMetric(burned, 0)}`} sublabel="burned" />
+        </div>
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-limeFresh transition-all duration-700" style={{ width: `${progress}%` }} />
+      </div>
+      <button
+        type="button"
+        onClick={onBurn}
+        className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-limeFresh px-4 font-black text-ink transition active:scale-95"
+      >
+        <Play size={18} />
+        Start a session
+      </button>
+    </section>
+  );
+}
+
+function WorkoutBurn({ user, goals, totals, onComplete }) {
+  const profile = user.profile || {};
+  const weightKg = Number(profile.weightKg || 70);
+  const [modeId, setModeId] = useState('walk');
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [speed, setSpeed] = useState(exerciseModes[0].speed);
+  const [lastSession, setLastSession] = useState(null);
+  const timerRef = useRef(null);
+  const gpsWatchRef = useRef(null);
+  const lastPositionRef = useRef(null);
+  const [gpsActive, setGpsActive] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState('Manual speed');
+
+  const mode = exerciseModes.find((item) => item.id === modeId) || exerciseModes[0];
+  const liveCalories = estimateExerciseCalories({ mode, weightKg, elapsedSeconds: elapsed, speed });
+  const target = Number(goals.burnCalories || 0);
+  const alreadyBurned = Number(totals.burnedCalories || 0);
+  const afterSessionBurned = alreadyBurned + liveCalories;
+  const remaining = Math.max(0, target - afterSessionBurned);
+  const progress = target > 0 ? goalProgress(afterSessionBurned, target) : 0;
+  const speedLabel = mode.speed > 0 ? `${roundMetric(speed, 1)} km/h` : `${roundMetric(speed, 1)} intensity`;
+  const ModeIcon = mode.icon;
+
+  useEffect(() => {
+    window.clearInterval(timerRef.current);
+    if (!running) return undefined;
+    timerRef.current = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timerRef.current);
+  }, [running]);
+
+  useEffect(() => {
+    setSpeed(mode.speed || 5);
+    if (mode.speed <= 0) stopGps();
+  }, [modeId]);
+
+  useEffect(() => () => stopGps(), []);
+
+  function startGps() {
+    if (!mode.speed) {
+      setGpsStatus('GPS speed is for walk, run, and cycle modes');
+      return;
+    }
+    if (!window.isSecureContext || !navigator.geolocation) {
+      setGpsStatus('GPS speed needs HTTPS; manual speed is active');
+      return;
+    }
+
+    setGpsStatus('Finding GPS speed...');
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const current = {
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          time: position.timestamp,
+        };
+        const directSpeed = Number(position.coords.speed);
+        let nextSpeed = Number.isFinite(directSpeed) && directSpeed > 0 ? directSpeed * 3.6 : 0;
+        if (!nextSpeed && lastPositionRef.current) {
+          const distanceKm = distanceBetweenKm(lastPositionRef.current, current);
+          const hours = Math.max(0.0001, (current.time - lastPositionRef.current.time) / 3600000);
+          nextSpeed = distanceKm / hours;
+        }
+        lastPositionRef.current = current;
+        if (nextSpeed > 0) {
+          setSpeed(Math.max(0.5, Math.min(mode.maxSpeed, roundMetric(nextSpeed, 1))));
+          setGpsStatus('GPS speed live');
+        }
+      },
+      () => {
+        setGpsStatus('GPS unavailable; manual speed is active');
+        stopGps();
+      },
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 8000 },
+    );
+    setGpsActive(true);
+  }
+
+  function stopGps() {
+    if (gpsWatchRef.current !== null) navigator.geolocation?.clearWatch(gpsWatchRef.current);
+    gpsWatchRef.current = null;
+    lastPositionRef.current = null;
+    setGpsActive(false);
+    setGpsStatus('Manual speed');
+  }
+
+  function endSession() {
+    if (elapsed < 10 || liveCalories < 1) {
+      setRunning(false);
+      return;
+    }
+
+    const session = {
+      modeId: mode.id,
+      name: `${mode.label} session`,
+      calories: Math.max(1, roundMetric(liveCalories, 0)),
+      elapsedSeconds: elapsed,
+      speed,
+      summary: `${formatDuration(elapsed)} at ${speedLabel}`,
+      completedAt: new Date().toISOString(),
+    };
+    onComplete(session);
+    setLastSession(session);
+    setRunning(false);
+    setElapsed(0);
+    stopGps();
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="hero-panel animate-rise overflow-hidden rounded-[32px] p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="inline-flex rounded-xl border border-white/10 bg-black/25 px-3 py-1 text-xs uppercase text-limeFresh">Workout burn</p>
+            <h2 className="mt-3 text-3xl font-black">Speedometer</h2>
+            <p className="mt-1 text-sm text-zinc-300">Start a session and watch calories burn live.</p>
+          </div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-limeFresh text-ink">
+            <ModeIcon size={26} />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <SpeedometerGauge value={progress} label={`${roundMetric(liveCalories, 0)}`} sublabel="kcal live" needle />
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <HeroChip label="Time" value={formatDuration(elapsed)} />
+          <HeroChip label={mode.speed > 0 ? 'Speed' : 'Effort'} value={speedLabel} />
+          <HeroChip label="Left" value={`${roundMetric(remaining, 0)} kcal`} />
+        </div>
+      </section>
+
+      <section className="glass-panel rounded-[24px] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Session type</h3>
+          <span className="text-xs text-zinc-500">{weightKg} kg profile weight</span>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {exerciseModes.map((item) => {
+            const Icon = item.icon;
+            const active = item.id === mode.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setModeId(item.id)}
+                className={`flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl border px-2 text-xs font-bold transition active:scale-95 ${active ? 'border-limeFresh bg-limeFresh text-ink' : 'border-white/10 bg-white/[0.04] text-zinc-300'}`}
+              >
+                <Icon size={19} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-zinc-400">{mode.speed > 0 ? 'Live speed' : 'Training intensity'}</span>
+            <span className="font-black text-white">{speedLabel}</span>
+          </div>
+          {mode.speed > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] p-2">
+              <span className="min-w-0 truncate text-xs text-zinc-400">{gpsStatus}</span>
+              <button
+                type="button"
+                onClick={gpsActive ? stopGps : startGps}
+                className={`h-9 shrink-0 rounded-xl px-3 text-xs font-black transition active:scale-95 ${gpsActive ? 'bg-white/10 text-white' : 'bg-limeFresh text-ink'}`}
+              >
+                {gpsActive ? 'Manual' : 'GPS speed'}
+              </button>
+            </div>
+          )}
+          <input
+            type="range"
+            min={mode.speed > 0 ? 1 : 1}
+            max={mode.maxSpeed}
+            step="0.1"
+            value={speed}
+            onChange={(event) => setSpeed(Number(event.target.value))}
+            className="mt-3 w-full accent-limeFresh"
+          />
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            Calories are estimated from MET, body weight, elapsed time, and speed/intensity.
+          </p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setRunning((value) => !value)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-limeFresh px-4 font-black text-ink transition active:scale-95"
+          >
+            {running ? <Pause size={18} /> : <Play size={18} />}
+            {running ? 'Pause' : elapsed ? 'Resume' : 'Start'}
+          </button>
+          <button
+            type="button"
+            onClick={endSession}
+            disabled={elapsed < 10}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-black text-white transition active:scale-95 disabled:opacity-40"
+          >
+            <Square size={17} />
+            End
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-[24px] border border-limeFresh/15 bg-limeFresh/10 p-4">
+        <div className="flex items-center gap-2 text-limeFresh">
+          <Flame size={18} />
+          <h3 className="text-sm font-bold uppercase tracking-wider text-white">Today burnout</h3>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <MiniMetric label="Target" value={`${target} kcal`} />
+          <MiniMetric label="Burned" value={`${roundMetric(alreadyBurned, 0)} kcal`} />
+          <MiniMetric label="After" value={`${roundMetric(afterSessionBurned, 0)} kcal`} />
+        </div>
+        {lastSession && (
+          <p className="mt-3 animate-pop rounded-2xl border border-limeFresh/20 bg-black/20 p-3 text-sm text-zinc-200">
+            {lastSession.name} logged: {lastSession.calories} kcal burned. Remaining target dropped with today&apos;s totals.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SpeedometerGauge({ value, label, sublabel, needle = false }) {
+  const progress = Math.max(0, Math.min(100, Number(value || 0)));
+  const angle = -90 + (progress / 100) * 180;
+  const dash = 283;
+
+  return (
+    <div className="relative mx-auto aspect-[2/1] w-full max-w-[260px] overflow-hidden">
+      <svg viewBox="0 0 220 120" className="h-full w-full">
+        <path d="M30 110 A80 80 0 0 1 190 110" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="18" strokeLinecap="round" />
+        <path
+          d="M30 110 A80 80 0 0 1 190 110"
+          fill="none"
+          stroke="url(#speedGradient)"
+          strokeWidth="18"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${dash}`}
+          strokeDashoffset={dash - (dash * progress) / 100}
+          className="transition-all duration-700"
+        />
+        <defs>
+          <linearGradient id="speedGradient" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#4dd5c4" />
+            <stop offset="55%" stopColor="#b7f34a" />
+            <stop offset="100%" stopColor="#ffea00" />
+          </linearGradient>
+        </defs>
+        {needle && (
+          <g className="transition-transform duration-500" style={{ transformOrigin: '110px 110px', transform: `rotate(${angle}deg)` }}>
+            <line x1="110" y1="110" x2="110" y2="42" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="110" cy="110" r="7" fill="#b7f34a" />
+          </g>
+        )}
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 text-center">
+        <p className="text-3xl font-black text-white">{label}</p>
+        <p className="text-xs uppercase tracking-wider text-zinc-500">{sublabel}</p>
+      </div>
+    </div>
+  );
+}
+
+function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed }) {
+  const minutes = Math.max(0, Number(elapsedSeconds || 0)) / 60;
+  const speedBoost = mode.speed > 0 && mode.speed
+    ? Math.max(0.75, Math.min(1.45, Number(speed || mode.speed) / mode.speed))
+    : Math.max(0.7, Math.min(1.5, Number(speed || 5) / 5));
+  const met = Number(mode.met || 4) * speedBoost;
+  return roundMetric((met * 3.5 * Number(weightKg || 70) * minutes) / 200, 1);
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds || 0)));
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    return `${hours}:${String(remMinutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
+function distanceBetweenKm(a, b) {
+  const radiusKm = 6371;
+  const toRadians = (degrees) => degrees * (Math.PI / 180);
+  const dLat = toRadians(b.lat - a.lat);
+  const dLon = toRadians(b.lon - a.lon);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * radiusKm * Math.asin(Math.sqrt(h));
 }
 
 function WaterTracker({ totals, goals, onLogWater }) {
@@ -1224,6 +1619,8 @@ function TodayTray({ items, goals, totals, onRemove }) {
 }
 
 function CompactMealRow({ item, onRemove }) {
+  if (item.type === 'exercise') return <CompactActivityRow item={item} onRemove={onRemove} />;
+
   return (
     <div className="animate-pop grid grid-cols-[48px_1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2">
       <FoodVisual foodId={item.foodId} size="sm" />
@@ -1231,6 +1628,32 @@ function CompactMealRow({ item, onRemove }) {
         <p className="truncate text-sm font-bold text-white">{item.name}</p>
         <p className="truncate text-xs text-zinc-500">{item.quantity}</p>
         <p className="mt-1 text-xs text-zinc-400">{roundMetric(item.nutrition.calories, 0)} kcal</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(item.id)}
+        className="inline-flex h-9 items-center justify-center gap-1 rounded-xl border border-white/10 px-3 text-xs text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+        aria-label={`Remove ${item.name}`}
+      >
+        <Trash2 size={15} />
+        Remove
+      </button>
+    </div>
+  );
+}
+
+function CompactActivityRow({ item, onRemove }) {
+  const mode = exerciseModes.find((exercise) => exercise.id === item.foodId) || exerciseModes[4];
+  const Icon = mode.icon;
+  return (
+    <div className="animate-pop grid grid-cols-[48px_1fr_auto] items-center gap-3 rounded-xl border border-limeFresh/15 bg-limeFresh/10 p-2">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/25 text-limeFresh">
+        <Icon size={20} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold text-white">{item.name}</p>
+        <p className="truncate text-xs text-zinc-500">{item.quantity}</p>
+        <p className="mt-1 text-xs text-limeFresh">{roundMetric(item.nutrition?.burnedCalories, 0)} kcal burned</p>
       </div>
       <button
         type="button"
@@ -1515,10 +1938,12 @@ function NutritionStat({ label, value, unit, tone }) {
 }
 
 function MealLog({ date, items, onRemove }) {
+  const sections = [...mealTypes, 'Water', 'Exercise'];
+
   return (
     <section className="glass-panel rounded-[22px] p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-bold">Meal log</h2>
+        <h2 className="text-base font-bold">Daily log</h2>
         <span className="text-xs text-zinc-400">{items.length} items</span>
       </div>
 
@@ -1528,7 +1953,7 @@ function MealLog({ date, items, onRemove }) {
         </div>
       ) : (
         <div className="space-y-4">
-          {mealTypes.map((mealType) => {
+          {sections.map((mealType) => {
             const mealItems = items.filter((item) => item.mealType === mealType);
             if (mealItems.length === 0) return null;
             return (
@@ -1549,6 +1974,8 @@ function MealLog({ date, items, onRemove }) {
 }
 
 function MealRow({ item, onRemove }) {
+  if (item.type === 'exercise') return <ActivityRow item={item} onRemove={onRemove} />;
+
   return (
     <div className="animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3 transition hover:border-white/20">
       <FoodVisual foodId={item.foodId} size="sm" />
@@ -1562,6 +1989,40 @@ function MealRow({ item, onRemove }) {
           <span>{roundMetric(item.nutrition.calories, 0)} kcal</span>
           <span>{roundMetric(item.nutrition.protein)}g protein</span>
           <span>{roundMetric(item.nutrition.carbs)}g carbs</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(item.id)}
+        className="inline-flex h-9 items-center justify-center gap-1 rounded-xl border border-white/10 px-3 text-xs text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+        aria-label={`Remove ${item.name}`}
+      >
+        <Trash2 size={15} />
+        Remove
+      </button>
+    </div>
+  );
+}
+
+function ActivityRow({ item, onRemove }) {
+  const mode = exerciseModes.find((exercise) => exercise.id === item.foodId) || exerciseModes[4];
+  const Icon = mode.icon;
+
+  return (
+    <div className="animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border border-limeFresh/15 bg-limeFresh/10 p-3 transition hover:border-limeFresh/30">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black/25 text-limeFresh">
+        <Icon size={22} />
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-bold text-white">{item.name}</p>
+          <span className="shrink-0 rounded-lg bg-limeFresh/15 px-2 py-0.5 text-[11px] text-limeFresh">Burn</span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-400">{item.quantity}</p>
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
+          <span className="text-limeFresh">{roundMetric(item.nutrition?.burnedCalories, 0)} kcal burned</span>
+          {item.exercise?.elapsedSeconds ? <span>{formatDuration(item.exercise.elapsedSeconds)}</span> : null}
+          {item.exercise?.speed ? <span>{roundMetric(item.exercise.speed, 1)} speed/intensity</span> : null}
         </div>
       </div>
       <button
@@ -2142,6 +2603,8 @@ function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSavePr
           <GoalInput label="Fat" value={goalDraft.fat} unit="g" onChange={(value) => updateGoal('fat', value)} />
           <GoalInput label="Fiber" value={goalDraft.fiber} unit="g" onChange={(value) => updateGoal('fiber', value)} />
           <GoalInput label="Sodium" value={goalDraft.sodium} unit="mg" onChange={(value) => updateGoal('sodium', value)} />
+          <GoalInput label="Water" value={goalDraft.water} unit="L" onChange={(value) => updateGoal('water', value)} />
+          <GoalInput label="Burn target" value={goalDraft.burnCalories} unit="kcal" onChange={(value) => updateGoal('burnCalories', value)} />
         </div>
         <button
           type="button"
@@ -2652,6 +3115,7 @@ function estimateGoalsFromProfile(profile) {
     sugar: 50,
     sodium: 2300,
     water: Math.max(1.5, Math.round((weight * 35) / 100) / 10),
+    burnCalories: profile.goal === 'gain' ? 220 : profile.goal === 'lose' ? 350 : 300,
   };
 }
 
