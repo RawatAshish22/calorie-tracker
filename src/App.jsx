@@ -124,9 +124,9 @@ const activityMultipliers = {
 };
 
 const exerciseModes = [
-  { id: 'walk', label: 'Walk', icon: Footprints, met: 3.8, speed: 4.8, maxSpeed: 8, color: '#4dd5c4' },
-  { id: 'run', label: 'Run', icon: Activity, met: 8.6, speed: 8.5, maxSpeed: 18, color: '#b7f34a' },
-  { id: 'cycle', label: 'Cycle', icon: Bike, met: 7.5, speed: 18, maxSpeed: 36, color: '#00f0ff' },
+  { id: 'walk', label: 'Walk', icon: Footprints, met: 3.8, speed: 4.8, maxSpeed: 8, minMoveSpeed: 1.2, color: '#4dd5c4' },
+  { id: 'run', label: 'Run', icon: Activity, met: 8.6, speed: 8.5, maxSpeed: 18, minMoveSpeed: 4.0, color: '#b7f34a' },
+  { id: 'cycle', label: 'Cycle', icon: Bike, met: 7.5, speed: 18, maxSpeed: 36, minMoveSpeed: 5.0, color: '#00f0ff' },
   { id: 'gym', label: 'Gym', icon: Dumbbell, met: 6.0, speed: 0, maxSpeed: 10, color: '#ffea00' },
   { id: 'hiit', label: 'HIIT', icon: Flame, met: 9.0, speed: 0, maxSpeed: 10, color: '#ff3366' },
 ];
@@ -1146,13 +1146,15 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
   const [gpsStatus, setGpsStatus] = useState('Manual speed');
 
   const mode = exerciseModes.find((item) => item.id === modeId) || exerciseModes[0];
-  const liveCalories = estimateExerciseCalories({ mode, weightKg, elapsedSeconds: elapsed, speed });
+  const isMoving = mode.speed <= 0 || !gpsActive || speed >= Number(mode.minMoveSpeed || 0);
+  const effectiveSpeed = isMoving ? speed : 0;
+  const liveCalories = estimateExerciseCalories({ mode, weightKg, elapsedSeconds: elapsed, speed: effectiveSpeed, gpsActive });
   const target = Number(goals.burnCalories || 0);
   const alreadyBurned = Number(totals.burnedCalories || 0);
   const afterSessionBurned = alreadyBurned + liveCalories;
   const remaining = Math.max(0, target - afterSessionBurned);
   const progress = target > 0 ? goalProgress(afterSessionBurned, target) : 0;
-  const speedLabel = mode.speed > 0 ? `${roundMetric(speed, 1)} km/h` : `${roundMetric(speed, 1)} intensity`;
+  const speedLabel = mode.speed > 0 ? `${roundMetric(effectiveSpeed, 1)} km/h` : `${roundMetric(speed, 1)} intensity`;
   const ModeIcon = mode.icon;
 
   useEffect(() => {
@@ -1180,6 +1182,8 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
     }
 
     setGpsStatus('Finding GPS speed...');
+    setSpeed(0);
+    lastPositionRef.current = null;
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const current = {
@@ -1195,10 +1199,9 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           nextSpeed = distanceKm / hours;
         }
         lastPositionRef.current = current;
-        if (nextSpeed > 0) {
-          setSpeed(Math.max(0.5, Math.min(mode.maxSpeed, roundMetric(nextSpeed, 1))));
-          setGpsStatus('GPS speed live');
-        }
+        const cleanSpeed = nextSpeed >= Number(mode.minMoveSpeed || 0) ? roundMetric(nextSpeed, 1) : 0;
+        setSpeed(Math.min(mode.maxSpeed, cleanSpeed));
+        setGpsStatus(cleanSpeed > 0 ? 'GPS speed live' : 'Still detected; no calories burning');
       },
       () => {
         setGpsStatus('GPS unavailable; manual speed is active');
@@ -1228,7 +1231,7 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
       name: `${mode.label} session`,
       calories: Math.max(1, roundMetric(liveCalories, 0)),
       elapsedSeconds: elapsed,
-      speed,
+      speed: effectiveSpeed,
       summary: `${formatDuration(elapsed)} at ${speedLabel}`,
       completedAt: new Date().toISOString(),
     };
@@ -1262,6 +1265,11 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           <HeroChip label={mode.speed > 0 ? 'Speed' : 'Effort'} value={speedLabel} />
           <HeroChip label="Left" value={`${roundMetric(remaining, 0)} kcal`} />
         </div>
+        {mode.speed > 0 && gpsActive && !isMoving && (
+          <p className="mt-3 animate-pop rounded-2xl border border-sun/20 bg-sun/10 px-3 py-2 text-center text-xs font-bold text-sun">
+            Still detected. Timer can run, but calorie burn is paused until you move.
+          </p>
+        )}
       </section>
 
       <section className="glass-panel rounded-[24px] p-4">
@@ -1400,10 +1408,12 @@ function SpeedometerGauge({ value, label, sublabel, needle = false }) {
   );
 }
 
-function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed }) {
+function estimateExerciseCalories({ mode, weightKg, elapsedSeconds, speed, gpsActive = false }) {
   const minutes = Math.max(0, Number(elapsedSeconds || 0)) / 60;
+  const currentSpeed = Number(speed || 0);
+  if (mode.speed > 0 && currentSpeed < Number(mode.minMoveSpeed || 0)) return 0;
   const speedBoost = mode.speed > 0 && mode.speed
-    ? Math.max(0.75, Math.min(1.45, Number(speed || mode.speed) / mode.speed))
+    ? Math.max(gpsActive ? 0 : 0.75, Math.min(1.45, currentSpeed / mode.speed))
     : Math.max(0.7, Math.min(1.5, Number(speed || 5) / 5));
   const met = Number(mode.met || 4) * speedBoost;
   return roundMetric((met * 3.5 * Number(weightKg || 70) * minutes) / 200, 1);
