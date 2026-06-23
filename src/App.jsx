@@ -95,7 +95,6 @@ const navItems = [
   { id: 'log', label: 'Log', icon: Search },
   { id: 'burn', label: 'Burn', icon: Flame },
   { id: 'groups', label: 'Groups', icon: Users },
-  { id: 'coach', label: 'Coach', icon: Bot },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
@@ -579,7 +578,12 @@ function TrackerShell({
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
       <div className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]">
-        <AppHeader user={currentUser} onLogout={onLogout} />
+        <AppHeader 
+          user={currentUser} 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onLogout={onLogout} 
+        />
         <main key={activeTab} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4 animate-tab-in">
           {activeTab === 'dashboard' && (
             <Dashboard
@@ -989,7 +993,7 @@ function ProfileSetup({ user, onComplete, onLogout }) {
   );
 }
 
-function AppHeader({ user, onLogout }) {
+function AppHeader({ user, activeTab, setActiveTab, onLogout }) {
   return (
     <header className="sticky top-0 z-20 bg-ink/80 px-4 py-4 backdrop-blur-2xl">
       <div className="flex items-center justify-between gap-3">
@@ -1000,14 +1004,32 @@ function AppHeader({ user, onLogout }) {
             <h1 className="truncate text-lg font-bold text-white">Hello, {user.name}</h1>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white/[0.03] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white active:scale-95"
-          aria-label="Logout"
-        >
-          <LogOut size={18} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ideal')}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-[14px] transition active:scale-95 ${activeTab === 'ideal' ? 'bg-limeFresh text-ink' : 'bg-white/[0.03] text-zinc-400 hover:bg-white/[0.08] hover:text-white'}`}
+            aria-label="BMI / Ideal Weight"
+          >
+            <Gauge size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('coach')}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-[14px] transition active:scale-95 ${activeTab === 'coach' ? 'bg-limeFresh text-ink' : 'bg-white/[0.03] text-zinc-400 hover:bg-white/[0.08] hover:text-white'}`}
+            aria-label="AI Coach"
+          >
+            <Bot size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] bg-white/[0.03] text-zinc-400 transition hover:bg-white/[0.08] hover:text-rose-400 active:scale-95"
+            aria-label="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
       </div>
     </header>
   );

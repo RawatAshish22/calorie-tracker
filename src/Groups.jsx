@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Users, UserPlus, Plus, ChevronRight, ChevronLeft, Activity, 
-  Flame, Settings
+  Flame, Settings, Copy
 } from 'lucide-react';
 import { 
   apiCreateGroup, apiJoinGroup, apiGetGroupFeed, apiLeaveGroup 
@@ -92,7 +92,16 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
           </button>
           <div className="text-center">
             <h2 className="text-lg font-bold">{selectedGroup.name}</h2>
-            <p className="text-xs text-zinc-400">Code: <span className="font-mono text-emerald-400">{selectedGroup.joinCode}</span></p>
+            <div 
+              className="flex items-center justify-center gap-2 cursor-pointer hover:opacity-80 transition"
+              onClick={() => {
+                navigator.clipboard.writeText(selectedGroup.code);
+                onToast('Invite code copied to clipboard!');
+              }}
+            >
+              <p className="text-xs text-zinc-400">Code: <span className="font-mono text-emerald-400 text-sm font-bold">{selectedGroup.code}</span></p>
+              <Copy className="h-3 w-3 text-emerald-400" />
+            </div>
           </div>
           <button onClick={handleLeave} className="rounded-full p-2 text-rose-400 hover:bg-zinc-800">
             <Settings className="h-5 w-5" />
