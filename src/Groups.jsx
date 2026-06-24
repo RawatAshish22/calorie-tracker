@@ -8,7 +8,7 @@ import {
 } from './lib/api.js';
 
 export default function Groups({ user, userGroups, setUserGroups, onToast }) {
-  const [view, setView] = useState('list'); // 'list', 'create', 'join', 'detail', 'group-settings'
+  const [view, setView] = useState('list'); // 'list', 'create', 'join', 'detail', 'group-settings', 'group-members'
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
@@ -111,20 +111,7 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Members */}
-          <div>
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-400">Members</h3>
-            <div className="flex flex-wrap gap-2">
-              {(feed?.members || []).map(m => (
-                <div key={m.userId} className="flex items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 border border-zinc-800">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
-                    {m.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-sm font-medium">{m.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Members (Moved to Settings) */}
 
           {/* Activity Feed */}
           <div>
@@ -149,7 +136,9 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
                         <span className="font-semibold">{item.userName}</span>
                       </div>
                       <span className="text-xs text-zinc-500">
-                        {new Date(item.createdAt).toLocaleDateString()}
+                        {new Date(item.postedAt).toLocaleString(undefined, {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        })}
                       </span>
                     </div>
                     
@@ -206,6 +195,19 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
             </div>
           </button>
 
+          <button
+            onClick={() => setView('group-members')}
+            className="flex w-full items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left transition-all hover:border-emerald-500/50 hover:bg-zinc-800"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white">Check Group Members</h4>
+              <p className="text-sm text-zinc-400">See everyone in this group</p>
+            </div>
+          </button>
+
           {!showLeaveConfirm ? (
             <button
               onClick={() => setShowLeaveConfirm(true)}
@@ -240,6 +242,39 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'group-members' && selectedGroup) {
+    return (
+      <div className="flex h-full flex-col bg-zinc-950 text-white animate-in slide-in-from-right-4">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-800 p-4">
+          <button onClick={() => setView('group-settings')} className="rounded-full p-2 hover:bg-zinc-800">
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <div className="text-center">
+            <h2 className="text-lg font-bold">{selectedGroup.name}</h2>
+            <p className="text-xs text-zinc-400">Members</p>
+          </div>
+          <div className="w-10"></div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {(feed?.members || []).map(m => (
+            <div key={m.userId} className="flex items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-lg font-bold text-emerald-400">
+                {m.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <span className="font-bold text-white">{m.name}</span>
+                <p className="text-xs text-zinc-400">Joined {new Date(m.joinedAt || Date.now()).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
