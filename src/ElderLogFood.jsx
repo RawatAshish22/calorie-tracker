@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Search, Check } from 'lucide-react';
 import { commonFoods } from './lib/foods.js';
+import { lookupNutrition } from './lib/aiNutrition.js';
 
 export default function ElderLogFood({ items, onAddFood }) {
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [recognition, setRecognition] = useState(null);
@@ -27,10 +29,29 @@ export default function ElderLogFood({ items, onAddFood }) {
           setTranscript(currentTranscript);
         };
 
-        rec.onend = () => {
+        rec.onend = async () => {
           setIsListening(false);
-          // In a real app, we'd send the transcript to an AI endpoint to parse into food items.
-          // For now, we just mock the parse if it contains 'dal' or 'roti'
+          setIsProcessing(true);
+          
+          if (currentTranscript.trim() !== '') {
+            try {
+              const res = await lookupNutrition(currentTranscript);
+              if (res) {
+                // If it's a generic AI response, we mock parsing it to an array
+                setParsedItems([{
+                  id: Date.now().toString(),
+                  name: res.foodName,
+                  portion: res.quantity,
+                  calories: res.nutrition.calories,
+                  nutrition: res.nutrition,
+                  source: 'ai'
+                }]);
+              }
+            } catch (err) {
+              console.error(err);
+            }
+          }
+          setIsProcessing(false);
         };
 
         rec.onerror = (e) => {
@@ -53,24 +74,28 @@ export default function ElderLogFood({ items, onAddFood }) {
     }
   };
 
-  // Mock parsed result for demonstration when voice is used
-  const parsedItems = transcript.toLowerCase().includes('roti') || transcript.toLowerCase().includes('dal') ? [
-    { id: '1', name: 'Dal', portion: '1 katori', calories: 150 },
-    { id: '2', name: 'Roti', portion: '2 pieces', calories: 140 }
-  ] : [];
+  const [parsedItems, setParsedItems] = useState([]);
+
+  // Removed mock parsed items logic since we now call lookupNutrition
 
   const handleConfirmVoice = () => {
     const totalCals = parsedItems.reduce((acc, item) => acc + item.calories, 0);
     const mockItem = {
       id: Date.now().toString(),
-      name: 'Voice logged meal',
-      quantity: '1 serving',
-      nutrition: { calories: totalCals, protein: 10, carbs: 40, fat: 5 },
+      name: parsedItems.map(i => i.name).join(', '),
+      quantity: parsedItems.map(i => i.portion).join(', '),
+      nutrition: { 
+        calories: totalCals, 
+        protein: parsedItems.reduce((acc, i) => acc + (i.nutrition?.protein || 0), 0), 
+        carbs: parsedItems.reduce((acc, i) => acc + (i.nutrition?.carbs || 0), 0), 
+        fat: parsedItems.reduce((acc, i) => acc + (i.nutrition?.fat || 0), 0) 
+      },
       source: 'voice',
       createdAt: new Date().toISOString()
     };
     onAddFood(mockItem);
     setTranscript('');
+    setParsedItems([]);
   };
 
   return (
@@ -97,7 +122,7 @@ export default function ElderLogFood({ items, onAddFood }) {
           </button>
           
           <p className="mt-4 text-lg font-bold text-[#2d2515]">
-            {isListening ? 'Listening...' : 'Tap and speak what you ate'}
+            {isListening ? 'Listening...' : isProcessing ? 'Processing with AI...' : 'Tap and speak what you ate'}
           </p>
           
           {transcript && (

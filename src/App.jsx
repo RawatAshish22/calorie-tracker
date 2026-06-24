@@ -860,7 +860,7 @@ function TrackerShell({
               <ElderWalks
                 goals={goals}
                 items={todayItems}
-                onStartWalk={() => setToast('Walk tracking started!')}
+                onStartWalk={() => setActiveTab('workout-burn')}
                 onLogWalk={() => setToast('Walk logged successfully!')}
               />
             ) : (
@@ -873,13 +873,35 @@ function TrackerShell({
             )
           )}
 
-          {activeTab === 'groups' && (
-            <Groups
+          {activeTab === 'workout-burn' && isElderly && (
+            <WorkoutBurn
               user={currentUser}
-              userGroups={userGroups}
-              setUserGroups={setUserGroups}
-              onToast={setToast}
+              goals={goals}
+              totals={todayTotals}
+              onComplete={(session) => {
+                onAddBurnSession(session);
+                setActiveTab('burn');
+              }}
+              isElderly={true}
             />
+          )}
+
+          {activeTab === 'groups' && (
+            isElderly ? (
+              <ElderGroups
+                user={currentUser}
+                userGroups={userGroups}
+                setUserGroups={setUserGroups}
+                onToast={setToast}
+              />
+            ) : (
+              <Groups
+                user={currentUser}
+                userGroups={userGroups}
+                setUserGroups={setUserGroups}
+                onToast={setToast}
+              />
+            )
           )}
 
           {activeTab === 'ideal' && (
@@ -898,14 +920,25 @@ function TrackerShell({
           )}
 
           {activeTab === 'profile' && (
-            <ProfilePanel
-              user={currentUser}
-              goals={goals}
-              aiSettings={aiSettings}
-              onSaveGoals={onSaveGoals}
-              onSaveAi={onSaveAi}
-              onSaveProfile={onSaveProfile}
-            />
+            isElderly ? (
+              <ElderProfile
+                user={currentUser}
+                goals={goals}
+                aiSettings={aiSettings}
+                onSaveGoals={onSaveGoals}
+                onSaveAi={onSaveAi}
+                onSaveProfile={onSaveProfile}
+              />
+            ) : (
+              <ProfilePanel
+                user={currentUser}
+                goals={goals}
+                aiSettings={aiSettings}
+                onSaveGoals={onSaveGoals}
+                onSaveAi={onSaveAi}
+                onSaveProfile={onSaveProfile}
+              />
+            )
           )}
         </main>
         <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} isElderly={isElderly} />
@@ -1463,7 +1496,7 @@ function BurnTargetPanel({ totals, goals, onBurn }) {
   );
 }
 
-function WorkoutBurn({ user, goals, totals, onComplete }) {
+function WorkoutBurn({ user, goals, totals, onComplete, isElderly }) {
   const profile = user.profile || {};
   const weightKg = Number(profile.weightKg || 70);
   const [modeId, setModeId] = useState('walk-run');
@@ -1670,14 +1703,14 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
 
   return (
     <div className="space-y-4">
-      <section className="hero-panel animate-rise overflow-hidden rounded-[32px] p-5">
+      <section className={`hero-panel animate-rise overflow-hidden rounded-[32px] p-5 ${isElderly ? 'bg-white border border-[#e8e4d9]' : ''}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="inline-flex rounded-xl border border-white/10 bg-black/25 px-3 py-1 text-xs uppercase text-limeFresh">Workout burn</p>
-            <h2 className="mt-3 text-3xl font-black">Speedometer</h2>
-            <p className="mt-1 text-sm text-zinc-300">Start a session and watch calories burn live.</p>
+            <p className={`inline-flex rounded-xl border px-3 py-1 text-xs uppercase ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#c48227]' : 'border-white/10 bg-black/25 text-limeFresh'}`}>Workout burn</p>
+            <h2 className={`mt-3 text-3xl font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Speedometer</h2>
+            <p className={`mt-1 text-sm ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-300'}`}>Start a session and watch calories burn live.</p>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-limeFresh text-ink">
+          <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${isElderly ? 'bg-[#c48227] text-white' : 'bg-limeFresh text-ink'}`}>
             <ModeIcon size={26} />
           </div>
         </div>
@@ -1699,10 +1732,10 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
         )}
       </section>
 
-      <section className="glass-panel rounded-[24px] p-4">
+      <section className={`rounded-[24px] p-4 ${isElderly ? 'bg-white border border-[#e8e4d9]' : 'glass-panel'}`}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Session type</h3>
-          <span className="text-xs text-zinc-500">{weightKg} kg profile weight</span>
+          <h3 className={`text-sm font-bold uppercase tracking-wider ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>Session type</h3>
+          <span className={`text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{weightKg} kg profile weight</span>
         </div>
         <div className="grid grid-cols-4 gap-2">
           {exerciseModes.map((item) => {
@@ -1713,7 +1746,11 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
                 key={item.id}
                 type="button"
                 onClick={() => setModeId(item.id)}
-                className={`flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl border px-2 text-xs font-bold transition active:scale-95 ${active ? 'border-limeFresh bg-limeFresh text-ink' : 'border-white/10 bg-white/[0.04] text-zinc-300'}`}
+                className={`flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-2xl border px-2 text-xs font-bold transition active:scale-95 ${
+                  active 
+                    ? (isElderly ? 'border-[#c48227] bg-[#c48227] text-white' : 'border-limeFresh bg-limeFresh text-ink') 
+                    : (isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2] text-[#7a6f5d]' : 'border-white/10 bg-white/[0.04] text-zinc-300')
+                }`}
               >
                 <Icon size={19} />
                 {item.label}
@@ -1722,17 +1759,17 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           })}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className={`mt-4 rounded-2xl border p-4 ${isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2]' : 'border-white/10 bg-black/20'}`}>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-400">{isGpsMode ? 'Live speed' : 'Session mode'}</span>
-            <span className="font-black text-white">{speedLabel}</span>
+            <span className={isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}>{isGpsMode ? 'Live speed' : 'Session mode'}</span>
+            <span className={`font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{speedLabel}</span>
           </div>
           {isGpsMode && (
-            <div className="mt-3 rounded-xl bg-white/[0.04] p-2 text-xs text-zinc-400">
+            <div className={`mt-3 rounded-xl p-2 text-xs ${isElderly ? 'bg-[#e8e4d9]/50 text-[#7a6f5d]' : 'bg-white/[0.04] text-zinc-400'}`}>
               {gpsStatus}{gpsAccuracy ? ` • ±${gpsAccuracy}m` : ''}
             </div>
           )}
-          <p className="mt-2 text-xs leading-5 text-zinc-500">
+          <p className={`mt-2 text-xs leading-5 ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>
             {isGpsMode
               ? 'Start uses GPS automatically. Calories and distance update from your live movement.'
               : 'Timer-based burn uses your selected workout type. Start the session to begin counting.'}
@@ -1743,7 +1780,7 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
           <button
             type="button"
             onClick={startPauseSession}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-limeFresh px-4 font-black text-ink transition active:scale-95"
+            className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 font-black transition active:scale-95 ${isElderly ? 'bg-[#c48227] text-white shadow-lg' : 'bg-limeFresh text-ink'}`}
           >
             {running ? <Pause size={18} /> : <Play size={18} />}
             {running ? 'Pause' : elapsed ? 'Resume' : 'Start'}
@@ -1752,7 +1789,7 @@ function WorkoutBurn({ user, goals, totals, onComplete }) {
             type="button"
             onClick={endSession}
             disabled={elapsed < 1}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 font-black text-white transition active:scale-95 disabled:opacity-40"
+            className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-4 font-black transition active:scale-95 disabled:opacity-40 ${isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2] text-[#2d2515]' : 'border-white/10 bg-white/[0.04] text-white'}`}
           >
             <Square size={17} />
             End
@@ -2146,7 +2183,7 @@ function FoodHeroVisual() {
   );
 }
 
-function NutritionModal({ result, onClose, onAdd }) {
+function NutritionModal({ result, onClose, onAdd, isElderly }) {
   const [mealType, setMealType] = useState('Lunch');
   const [mode, setMode] = useState('servings');
   const [servings, setServings] = useState(1);
@@ -2197,23 +2234,23 @@ function NutritionModal({ result, onClose, onAdd }) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/75 px-3 pb-3 backdrop-blur-sm sm:items-center sm:p-4">
-      <section className="animate-sheet w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0b1713] shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+    <div className={`fixed inset-0 z-40 flex items-end justify-center px-3 pb-3 backdrop-blur-sm sm:items-center sm:p-4 ${isElderly ? 'bg-[#fcfaf2]/90' : 'bg-black/75'}`}>
+      <section className={`animate-sheet w-full max-w-md overflow-hidden rounded-[28px] border shadow-[0_24px_80px_rgba(0,0,0,0.55)] ${isElderly ? 'bg-white border-[#e8e4d9]' : 'border-white/10 bg-[#0b1713]'}`}>
         <div className="relative p-4">
           <div className="hero-lines absolute inset-0" />
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-3">
               <FoodVisual foodId={result.foodId} />
               <div className="min-w-0">
-                <p className="text-xs uppercase text-limeFresh">{result.source}</p>
-                <h2 className="mt-1 truncate text-xl font-black text-white">{result.foodName}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{adjusted.quantity}</p>
+                <p className={`text-xs uppercase ${isElderly ? 'text-[#c48227]' : 'text-limeFresh'}`}>{result.source}</p>
+                <h2 className={`mt-1 truncate text-xl font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{result.foodName}</h2>
+                <p className={`mt-1 text-sm ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{adjusted.quantity}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition active:scale-95 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#7a6f5d] hover:border-[#c48227] hover:text-[#c48227]' : 'border-white/10 bg-black/25 text-zinc-300 hover:border-berry hover:text-berry'}`}
               aria-label="Close"
             >
               <X size={20} />
@@ -2222,14 +2259,14 @@ function NutritionModal({ result, onClose, onAdd }) {
         </div>
 
         <div className="px-4 pb-4">
-          <div className="rounded-[20px] border border-white/10 bg-black/25 p-3">
+          <div className={`rounded-[20px] border p-3 ${isElderly ? 'border-[#e8e4d9] bg-white' : 'border-white/10 bg-black/25'}`}>
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-bold">Quantity</h3>
-              <div className="flex rounded-xl border border-white/10 bg-black/25 p-1">
+              <h3 className={`text-sm font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Quantity</h3>
+              <div className={`flex rounded-xl border p-1 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4]' : 'border-white/10 bg-black/25'}`}>
                 <button
                   type="button"
                   onClick={() => chooseMode('servings')}
-                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition ${mode === 'servings' ? 'bg-limeFresh text-ink' : 'text-zinc-400'}`}
+                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition ${mode === 'servings' ? (isElderly ? 'bg-[#c48227] text-white' : 'bg-limeFresh text-ink') : (isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400')}`}
                 >
                   <Utensils size={14} />
                   Servings
@@ -2238,7 +2275,7 @@ function NutritionModal({ result, onClose, onAdd }) {
                   type="button"
                   onClick={() => chooseMode('weight')}
                   disabled={!canUseWeight}
-                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition disabled:opacity-35 ${mode === 'weight' ? 'bg-limeFresh text-ink' : 'text-zinc-400'}`}
+                  className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition disabled:opacity-35 ${mode === 'weight' ? (isElderly ? 'bg-[#c48227] text-white' : 'bg-limeFresh text-ink') : (isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400')}`}
                 >
                   <Scale size={14} />
                   Grams
@@ -2270,12 +2307,16 @@ function NutritionModal({ result, onClose, onAdd }) {
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <NutritionStat label="Calories" value={adjusted.nutrition.calories} unit="kcal" tone="text-limeFresh" />
-            <NutritionStat label="Protein" value={adjusted.nutrition.protein} unit="g" tone="text-mint" />
-            <NutritionStat label="Carbs" value={adjusted.nutrition.carbs} unit="g" tone="text-aqua" />
-            <NutritionStat label="Fat" value={adjusted.nutrition.fat} unit="g" tone="text-sun" />
-            <NutritionStat label="Fiber" value={adjusted.nutrition.fiber} unit="g" tone="text-berry" />
-            <NutritionStat label="Sodium" value={adjusted.nutrition.sodium} unit="mg" tone="text-zinc-200" />
+            <NutritionStat label="Calories" value={adjusted.nutrition.calories} unit="kcal" tone={isElderly ? "text-[#c48227]" : "text-limeFresh"} />
+            {!isElderly && (
+              <>
+                <NutritionStat label="Protein" value={adjusted.nutrition.protein} unit="g" tone="text-mint" />
+                <NutritionStat label="Carbs" value={adjusted.nutrition.carbs} unit="g" tone="text-aqua" />
+                <NutritionStat label="Fat" value={adjusted.nutrition.fat} unit="g" tone="text-sun" />
+                <NutritionStat label="Fiber" value={adjusted.nutrition.fiber} unit="g" tone="text-berry" />
+                <NutritionStat label="Sodium" value={adjusted.nutrition.sodium} unit="mg" tone="text-zinc-200" />
+              </>
+            )}
           </div>
 
           {vitamins.length > 0 && (
@@ -2311,7 +2352,7 @@ function NutritionModal({ result, onClose, onAdd }) {
           <button
             type="button"
             onClick={() => onAdd(adjusted, mealType)}
-            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-limeFresh px-4 font-bold text-ink transition hover:-translate-y-0.5 active:scale-95"
+            className={`mt-4 flex w-full items-center justify-center gap-2 rounded-[20px] py-4 text-lg font-black transition active:scale-95 ${isElderly ? 'bg-[#c48227] text-white shadow-lg' : 'bg-limeFresh text-ink shadow-[0_0_20px_rgba(202,240,83,0.3)] hover:bg-[#b8db4d] hover:-translate-y-0.5'}`}
           >
             <Check size={20} />
             Add to today
