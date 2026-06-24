@@ -226,7 +226,7 @@ function reducer(state, action) {
     case 'saveProfile':
       return {
         ...state,
-        users: state.users.map((user) => (user.id === action.userId ? { ...user, name: action.profile.name || user.name, profile: action.profile } : user)),
+        users: state.users.map((user) => (user.id === action.userId ? { ...user, name: action.profile.name || user.name, profile: action.profile, profilePic: action.profilePic !== undefined ? action.profilePic : user.profilePic } : user)),
         goals: action.goals ? { ...state.goals, ...action.goals } : state.goals,
       };
     case 'addMeal': {
@@ -505,6 +505,24 @@ export default function App() {
     }
   }
 
+  async function handleSaveProfilePic(profilePic) {
+    // Optimistic UI
+    dispatch({
+      type: 'saveProfile',
+      userId: currentUser.id,
+      profile: currentUser.profile,
+      goals: state.goals,
+      profilePic
+    });
+    setToast('Profile picture updated');
+
+    try {
+      await apiSaveProfile(currentUser.profile, state.goals, profilePic);
+    } catch (err) {
+      setToast('Failed to sync profile picture to cloud');
+    }
+  }
+
   async function handleLogout() {
     await apiLogout();
     dispatch({ type: 'logout' });
@@ -641,6 +659,7 @@ export default function App() {
         coachMessages={coachMessages}
         setCoachMessages={setCoachMessages}
         onSaveProfile={handleProfileSave}
+        onSaveProfilePic={handleSaveProfilePic}
         userGroups={userGroups}
         setUserGroups={setUserGroups}
       />
@@ -758,6 +777,7 @@ function TrackerShell({
   onSaveAi,
   onApplyCoachGoals,
   onSaveProfile,
+  onSaveProfilePic,
   coachMessages,
   setCoachMessages,
   userGroups,
@@ -765,6 +785,8 @@ function TrackerShell({
 }) {
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
+  const [walkMinutesModal, setWalkMinutesModal] = useState(false);
+  const [walkMinutesInput, setWalkMinutesInput] = useState('');
 
   const onTouchStart = (e) => {
     setTouchEnd(null);
@@ -890,16 +912,9 @@ function TrackerShell({
                 goals={goals}
                 items={todayItems}
                 onStartWalk={() => setActiveTab('workout-burn')}
-                onLogWalk={async () => {
-                  const res = window.prompt("How many minutes did you walk?");
-                  if (res !== null) {
-                    const mins = parseInt(res, 10);
-                    if (Number.isFinite(mins) && mins > 0) {
-                      await handleLogWalkMinutes(mins);
-                    } else if (res.trim() !== '') {
-                      setToast("Please enter a valid number of minutes.");
-                    }
-                  }
+                onLogWalk={() => {
+                  setWalkMinutesInput('');
+                  setWalkMinutesModal(true);
                 }}
               />
             ) : (
@@ -968,6 +983,7 @@ function TrackerShell({
                 onSaveGoals={onSaveGoals}
                 onSaveAi={onSaveAi}
                 onSaveProfile={onSaveProfile}
+                onSaveProfilePic={onSaveProfilePic}
               />
             ) : (
               <ProfilePanel
@@ -977,8 +993,87 @@ function TrackerShell({
                 onSaveGoals={onSaveGoals}
                 onSaveAi={onSaveAi}
                 onSaveProfile={onSaveProfile}
+                onSaveProfilePic={onSaveProfilePic}
               />
             )
+          )}
+
+          {/* Walk Minutes In-App Modal */}
+          {walkMinutesModal && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setWalkMinutesModal(false)}>
+              <div
+                className="w-full max-w-md rounded-t-[32px] border border-[#e8e4d9] bg-white p-6 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#c48227]/10">
+                  <Footprints className="h-6 w-6 text-[#c48227]" />
+                </div>
+                <h3 className="mt-2 text-2xl font-black text-[#2d2515]">How long did you walk?</h3>
+                <p className="mt-1 text-base text-[#7a6f5d]">
+                  Enter the number of minutes and we'll calculate your calories burned.
+                </p>
+
+                <div className="mt-5 flex items-center gap-3 rounded-2xl border-2 border-[#c48227]/30 bg-[#f2efe4] px-4 py-3 focus-within:border-[#c48227]">
+                  <Footprints className="h-5 w-5 shrink-0 text-[#c48227]" />
+                  <input
+                    id="walk-minutes-input"
+                    type="number"
+                    min="1"
+                    max="600"
+                    value={walkMinutesInput}
+                    onChange={(e) => setWalkMinutesInput(e.target.value)}
+                    placeholder="e.g. 30"
+                    autoFocus
+                    className="min-w-0 flex-1 bg-transparent text-2xl font-black text-[#2d2515] outline-none placeholder:text-[#7a6f5d]/40"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const mins = parseInt(walkMinutesInput, 10);
+                        if (Number.isFinite(mins) && mins > 0) {
+                          const weightKg = currentUser?.profile?.weightKg || 70;
+                          const cal = Math.round((3.8 * 3.5 * weightKg * mins) / 200);
+                          onAddBurnSession({ modeId: 'walk-run', name: 'Walk', calories: cal, elapsedSeconds: mins * 60, speed: 4.8, distanceKm: Math.round((4.8 * mins / 60) * 100) / 100, summary: `${mins} mins • Walk`, completedAt: new Date().toISOString() });
+                          setWalkMinutesModal(false);
+                        }
+                      }
+                    }}
+                  />
+                  <span className="shrink-0 text-base font-bold text-[#7a6f5d]">min</span>
+                </div>
+
+                {walkMinutesInput && Number.isFinite(parseInt(walkMinutesInput, 10)) && parseInt(walkMinutesInput, 10) > 0 && (
+                  <p className="mt-3 text-center text-base font-semibold text-[#c48227]">
+                    ≈ {Math.round((3.8 * 3.5 * (currentUser?.profile?.weightKg || 70) * parseInt(walkMinutesInput, 10)) / 200)} kcal will be logged as burned
+                  </p>
+                )}
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setWalkMinutesModal(false)}
+                    className="h-14 rounded-2xl border border-[#e8e4d9] bg-white text-base font-bold text-[#7a6f5d] transition active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const mins = parseInt(walkMinutesInput, 10);
+                      if (!Number.isFinite(mins) || mins <= 0) {
+                        setToast('Please enter a valid number of minutes');
+                        return;
+                      }
+                      const weightKg = currentUser?.profile?.weightKg || 70;
+                      const cal = Math.round((3.8 * 3.5 * weightKg * mins) / 200);
+                      onAddBurnSession({ modeId: 'walk-run', name: 'Walk', calories: cal, elapsedSeconds: mins * 60, speed: 4.8, distanceKm: Math.round((4.8 * mins / 60) * 100) / 100, summary: `${mins} mins • Walk`, completedAt: new Date().toISOString() });
+                      setWalkMinutesModal(false);
+                    }}
+                    className="h-14 rounded-2xl bg-[#c48227] text-base font-bold text-white shadow-lg shadow-[#c48227]/30 transition active:scale-95"
+                  >
+                    ✓ Log Walk
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </main>
         <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} isElderly={isElderly} />
@@ -3143,10 +3238,12 @@ function getGpsErrorMessage(error) {
   return error?.message || 'GPS permission failed';
 }
 
-function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSaveProfile }) {
+function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSaveProfile, onSaveProfilePic }) {
   const [goalDraft, setGoalDraft] = useState(goals);
   const [settingsDraft, setSettingsDraft] = useState(aiSettings);
   const [profileDraft, setProfileDraft] = useState(user.profile);
+  const [picUploading, setPicUploading] = useState(false);
+  const picInputRef = useRef(null);
 
   useEffect(() => setGoalDraft(goals), [goals]);
   useEffect(() => setSettingsDraft(aiSettings), [aiSettings]);
@@ -3164,17 +3261,71 @@ function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSavePr
     setProfileDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function handlePicChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image too large. Please choose an image under 2MB.');
+      return;
+    }
+    setPicUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      onSaveProfilePic?.(reader.result);
+      setPicUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const profilePic = user?.profilePic;
+  const initial = (user.name || 'U').charAt(0).toUpperCase();
+
   return (
     <div className="space-y-4">
       <section className="hero-panel rounded-[26px] border border-white/10 p-4">
-        <div className="flex items-center gap-3">
-          <LogoMark />
-          <div>
+        {/* Profile Picture Area */}
+        <div className="flex flex-col items-center gap-3 pb-4">
+          <input
+            ref={picInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePicChange}
+          />
+          <button
+            type="button"
+            onClick={() => picInputRef.current?.click()}
+            className="group relative h-24 w-24 cursor-pointer rounded-full ring-4 ring-limeFresh/40 transition hover:ring-limeFresh"
+            aria-label="Change profile picture"
+          >
+            {profilePic ? (
+              <img src={profilePic} alt="Profile" className="h-24 w-24 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-limeFresh/30 to-aqua/30 text-4xl font-black text-white">
+                {initial}
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition group-hover:opacity-100">
+              {picUploading ? (
+                <RefreshCw className="h-6 w-6 animate-spin text-white" />
+              ) : (
+                <Camera className="h-6 w-6 text-white" />
+              )}
+            </div>
+          </button>
+          <div className="text-center">
             <p className="text-sm text-limeFresh">Member profile</p>
             <h2 className="text-xl font-black">{user.name}</h2>
+            <button
+              type="button"
+              onClick={() => picInputRef.current?.click()}
+              className="mt-1 text-xs text-zinc-400 underline hover:text-limeFresh"
+            >
+              {profilePic ? 'Change photo' : 'Add photo'}
+            </button>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <HeroChip label="Height" value={formatHeight(profileDraft)} />
           <HeroChip label="Weight" value={`${profileDraft.weightKg}kg`} />
           <HeroChip label="Target" value={`${profileDraft.desiredWeightKg}kg`} />

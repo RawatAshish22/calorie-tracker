@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Target, Settings, Save, Ruler, Scale } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Target, Settings, Save, Ruler, Scale, Camera, RefreshCw } from 'lucide-react';
 
 // Math/Conversion Utilities for ElderProfile
 function getHeightCm(profile) {
@@ -27,10 +27,12 @@ function formatHeight(profile) {
   return `${getHeightCm(profile)}cm`;
 }
 
-export default function ElderProfile({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSaveProfile }) {
+export default function ElderProfile({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSaveProfile, onSaveProfilePic }) {
   const [goalDraft, setGoalDraft] = useState(goals);
   const [settingsDraft, setSettingsDraft] = useState(aiSettings);
   const [profileDraft, setProfileDraft] = useState(user.profile || {});
+  const [picUploading, setPicUploading] = useState(false);
+  const picInputRef = useRef(null);
 
   useEffect(() => setGoalDraft(goals), [goals]);
   useEffect(() => setSettingsDraft(aiSettings), [aiSettings]);
@@ -48,17 +50,69 @@ export default function ElderProfile({ user, goals, aiSettings, onSaveGoals, onS
     setProfileDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function handlePicChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image too large. Please choose an image under 2MB.');
+      return;
+    }
+    setPicUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      onSaveProfilePic?.(reader.result);
+      setPicUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const profilePic = user?.profilePic;
+  const initial = (user.name || 'U').charAt(0).toUpperCase();
+
   return (
     <div className="space-y-6 bg-[#fcfaf2] text-[#2d2515] p-4 min-h-full">
       {/* Header Panel */}
       <section className="rounded-[26px] border border-[#e8e4d9] bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#c48227]/10 text-[#c48227]">
-            <User size={32} />
-          </div>
-          <div>
-            <p className="text-sm text-[#c48227] font-bold">Member Profile</p>
-            <h2 className="text-xl font-black text-[#2d2515]">{user.name}</h2>
+        {/* Profile Picture */}
+        <div className="flex flex-col items-center gap-4">
+          <input
+            ref={picInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePicChange}
+          />
+          <button
+            type="button"
+            onClick={() => picInputRef.current?.click()}
+            className="group relative h-28 w-28 cursor-pointer rounded-full border-4 border-[#d7b861] transition hover:border-[#c48227]"
+            aria-label="Change profile picture"
+          >
+            {profilePic ? (
+              <img src={profilePic} alt="Profile" className="h-full w-full rounded-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center rounded-full bg-[#c48227]/10 text-5xl font-black text-[#c48227]">
+                {initial}
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-[#c48227]/40 opacity-0 transition group-hover:opacity-100">
+              {picUploading ? (
+                <RefreshCw className="h-7 w-7 animate-spin text-white" />
+              ) : (
+                <Camera className="h-7 w-7 text-white" />
+              )}
+            </div>
+          </button>
+          <div className="text-center">
+            <p className="text-sm font-bold text-[#c48227]">Member Profile</p>
+            <h2 className="text-2xl font-black text-[#2d2515]">{user.name}</h2>
+            <button
+              type="button"
+              onClick={() => picInputRef.current?.click()}
+              className="mt-1 text-sm font-semibold text-[#7a6f5d] underline hover:text-[#c48227]"
+            >
+              {profilePic ? 'Change photo' : '+ Add photo'}
+            </button>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
