@@ -22,6 +22,7 @@ const nutritionPrompt = [
   'Estimate total nutrition for the exact food and quantity.',
   'Use keys: foodName, quantity, calories, protein, carbs, fat, fiber, sugar, sodium, vitamins, notes, servingGrams.',
   'Numbers must be totals. protein, carbs, fat, fiber, sugar are grams. sodium is mg.',
+  'Vitamins in the vitamins object must be key-value pairs where values are strings with units (e.g., "vitaminA": "150 mcg", "vitaminC": "20 mg", "calcium": "100 mg", "iron": "2 mg"). Use full camelCase names for keys (vitaminA, vitaminC, vitaminD, vitaminE, vitaminK, vitaminB6, vitaminB12, calcium, iron, potassium, magnesium, phosphorus, zinc, selenium, folate, niacin).',
 ].join(' ');
 
 const coachPrompt = [
@@ -43,6 +44,7 @@ const visionPrompt = [
   'Look at the image and estimate visible food items and total nutrition.',
   'This is for a rough estimation only, you must provide your best guess even if uncertain.',
   'Return valid JSON only with keys: detectedItems, foodName, quantity, calories, protein, carbs, fat, fiber, sugar, sodium, vitamins, funFact, confidence, servingGrams.',
+  'Vitamins in the vitamins object must be key-value pairs where values are strings with units (e.g., "vitaminA": "150 mcg", "vitaminC": "20 mg", "calcium": "100 mg", "iron": "2 mg"). Use full camelCase names for keys (vitaminA, vitaminC, vitaminD, vitaminE, vitaminK, vitaminB6, vitaminB12, calcium, iron, potassium, magnesium, phosphorus, zinc, selenium, folate, niacin).',
   'If uncertain, say so in confidence and notes. Do not invent exactness, but you MUST return the JSON object.'
 ].join(' ');
 

@@ -2484,8 +2484,20 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 {vitamins.map(([key, value]) => {
                   const VITAMIN_LABELS = {
-                    calcium: 'Calcium',
-                    iron: 'Iron',
+                    a: 'Vitamin A',
+                    c: 'Vitamin C',
+                    e: 'Vitamin E',
+                    d: 'Vitamin D',
+                    k: 'Vitamin K',
+                    b6: 'Vitamin B6',
+                    b12: 'Vitamin B12',
+                    A: 'Vitamin A',
+                    C: 'Vitamin C',
+                    E: 'Vitamin E',
+                    D: 'Vitamin D',
+                    K: 'Vitamin K',
+                    B6: 'Vitamin B6',
+                    B12: 'Vitamin B12',
                     vitaminA: 'Vitamin A',
                     vitaminC: 'Vitamin C',
                     vitaminD: 'Vitamin D',
@@ -2493,6 +2505,8 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
                     vitaminK: 'Vitamin K',
                     vitaminB6: 'Vitamin B6',
                     vitaminB12: 'Vitamin B12',
+                    calcium: 'Calcium',
+                    iron: 'Iron',
                     potassium: 'Potassium',
                     magnesium: 'Magnesium',
                     phosphorus: 'Phosphorus',
@@ -2501,11 +2515,59 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
                     folate: 'Folate',
                     niacin: 'Niacin',
                   };
-                  const label = VITAMIN_LABELS[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+                  const VITAMIN_UNITS = {
+                    calcium: 'mg',
+                    iron: 'mg',
+                    vitaminA: 'mcg',
+                    vitaminC: 'mg',
+                    vitaminD: 'mcg',
+                    vitaminE: 'mg',
+                    vitaminK: 'mcg',
+                    vitaminB6: 'mg',
+                    vitaminB12: 'mcg',
+                    potassium: 'mg',
+                    magnesium: 'mg',
+                    phosphorus: 'mg',
+                    zinc: 'mg',
+                    selenium: 'mcg',
+                    folate: 'mcg',
+                    niacin: 'mg',
+                    a: 'mcg',
+                    c: 'mg',
+                    e: 'mg',
+                    d: 'mcg',
+                    k: 'mcg',
+                    b6: 'mg',
+                    b12: 'mcg',
+                    A: 'mcg',
+                    C: 'mg',
+                    E: 'mg',
+                    D: 'mcg',
+                    K: 'mcg',
+                    B6: 'mg',
+                    B12: 'mcg',
+                  };
+                  const lowerKey = key.toLowerCase();
+                  let label = VITAMIN_LABELS[key] || VITAMIN_LABELS[lowerKey];
+                  if (!label) {
+                    if (lowerKey.startsWith('vitamin')) {
+                      const letter = key.replace(/vitamin/i, '').trim().toUpperCase();
+                      label = `Vitamin ${letter}`;
+                    } else {
+                      label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+                    }
+                  }
+
+                  let displayValue = String(value || '');
+                  const hasUnit = /[a-zA-Z%]/.test(displayValue);
+                  if (!hasUnit && displayValue.trim() !== '') {
+                    const unitFallback = VITAMIN_UNITS[key] || VITAMIN_UNITS[lowerKey] || '%';
+                    displayValue = `${displayValue} ${unitFallback}`;
+                  }
                   return (
                     <div key={key} className={`flex justify-between gap-2 rounded-xl px-2 py-2 ${isElderly ? 'bg-[#f2efe4]' : 'bg-white/5'}`}>
                       <span className={`${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{label}</span>
-                      <span className={`font-bold ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{value}</span>
+                      <span className={`font-bold ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{displayValue}</span>
                     </div>
                   );
                 })}
