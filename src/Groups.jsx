@@ -129,12 +129,16 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
                 {(feed?.activity || []).map(item => (
                   <div key={item._id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 transition-all hover:border-zinc-700">
                     <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
+                    <div className="flex items-center gap-2">
+                      {item.userProfilePic ? (
+                        <img src={item.userProfilePic} alt={item.userName} className="h-7 w-7 rounded-full object-cover border border-emerald-500/40" />
+                      ) : (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
                           {item.userName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold">{item.userName}</span>
-                      </div>
+                      )}
+                      <span className="font-semibold">{item.userName}</span>
+                    </div>
                       <span className="text-xs text-zinc-500">
                         {new Date(item.postedAt).toLocaleString(undefined, {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -266,9 +270,13 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {(feed?.members || []).map(m => (
             <div key={m.userId} className="flex items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-lg font-bold text-emerald-400">
-                {m.name.charAt(0).toUpperCase()}
-              </div>
+              {m.profilePic ? (
+                <img src={m.profilePic} alt={m.name} className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-emerald-500/40" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-lg font-bold text-emerald-400">
+                  {m.name.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div>
                 <span className="font-bold text-white">{m.name}</span>
                 <p className="text-xs text-zinc-400">Joined {new Date(m.joinedAt || Date.now()).toLocaleDateString()}</p>

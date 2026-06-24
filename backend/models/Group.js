@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const activitySchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   userName: String,
+  userProfilePic: { type: String, default: '' },
   modeId: String,
   modeName: String,
   calories: Number,
@@ -15,6 +16,7 @@ const activitySchema = new mongoose.Schema({
 const memberSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,
+  profilePic: { type: String, default: '' },
   joinedAt: { type: Date, default: Date.now },
 });
 

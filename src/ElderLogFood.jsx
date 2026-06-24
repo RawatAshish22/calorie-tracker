@@ -14,6 +14,7 @@ export default function ElderLogFood({
   onRemove,
   onOpenScan,
   onOpenHistory,
+  onItemClick,
 }) {
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -113,23 +114,25 @@ export default function ElderLogFood({
   }
 
   function handleSelectCommonFood(food) {
+    const n = food.nutrition || {};
     const nutrition = {
-      calories: Number(food.calories || 0),
-      protein: Number(food.protein || 0),
-      carbs: Number(food.carbs || 0),
-      fat: Number(food.fat || 0),
-      fiber: Number(food.fiber || 0),
-      sodium: Number(food.sodium || 0),
-      vitamins: {},
+      calories: Number(n.calories || food.calories || 0),
+      protein: Number(n.protein || 0),
+      carbs: Number(n.carbs || 0),
+      fat: Number(n.fat || 0),
+      fiber: Number(n.fiber || 0),
+      sugar: Number(n.sugar || 0),
+      sodium: Number(n.sodium || 0),
+      vitamins: n.vitamins || {},
     };
     onResult({
-      foodId: food.foodId || 'generic',
+      foodId: food.id || food.foodId || 'generic',
       foodName: food.name,
-      quantity: food.portion,
+      quantity: food.portion || food.quantity,
       source: 'Quick database',
       nutrition,
       baseNutrition: nutrition,
-      baseQuantity: food.portion,
+      baseQuantity: food.portion || food.quantity,
       baseServingGrams: food.servingGrams || 40,
     });
   }
@@ -290,14 +293,18 @@ export default function ElderLogFood({
           <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
             {todayItems.filter(i => i.type !== 'exercise').map((item) => (
               <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-[#fcfaf2] border border-[#e8e4d9] text-sm">
-                <div className="min-w-0">
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => onItemClick && onItemClick(item)}
+                >
                   <p className="font-bold text-[#2d2515] truncate">{item.name}</p>
                   <p className="text-xs text-[#7a6f5d]">{item.quantity} • {roundMetric(item.nutrition?.calories, 0)} kcal</p>
-                </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => onRemove(item.id)}
-                  className="p-2 rounded-lg text-[#7a6f5d] hover:bg-[#e8e4d9] hover:text-red-500 transition active:scale-95"
+                  className="ml-2 p-2 rounded-lg text-[#7a6f5d] hover:bg-[#e8e4d9] hover:text-red-500 transition active:scale-95"
                   aria-label={`Remove ${item.name}`}
                 >
                   <Trash2 size={16} />

@@ -130,9 +130,13 @@ export default function ElderGroups({ user, userGroups, setUserGroups, onToast }
                   <div key={item._id} className="rounded-2xl border border-[#e8e4d9] bg-[#fcfaf2] p-4 transition-all hover:border-[#c48227]/30">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#c48227]/20 text-xs font-bold text-[#c48227]">
-                          {item.userName.charAt(0).toUpperCase()}
-                        </div>
+                        {item.userProfilePic ? (
+                          <img src={item.userProfilePic} alt={item.userName} className="h-7 w-7 rounded-full object-cover border border-[#d7b861]" />
+                        ) : (
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#c48227]/20 text-xs font-bold text-[#c48227]">
+                            {item.userName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <span className="font-semibold text-[#2d2515]">{item.userName}</span>
                       </div>
                       <span className="text-xs text-[#7a6f5d]">
@@ -265,10 +269,14 @@ export default function ElderGroups({ user, userGroups, setUserGroups, onToast }
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {(feed?.members || []).map(m => (
-            <div key={m.userId} className="flex items-center gap-4 rounded-2xl border border-[#e8e4d9] bg-[#fcfaf2] border border-[#e8e4d9] p-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#c48227]/20 text-lg font-bold text-[#c48227]">
-                {m.name.charAt(0).toUpperCase()}
-              </div>
+            <div key={m.userId} className="flex items-center gap-4 rounded-2xl border border-[#e8e4d9] bg-[#fcfaf2] p-4">
+              {m.profilePic ? (
+                <img src={m.profilePic} alt={m.name} className="h-12 w-12 shrink-0 rounded-full object-cover border-2 border-[#d7b861]" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#c48227]/20 text-lg font-bold text-[#c48227]">
+                  {m.name.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div>
                 <span className="font-bold text-[#2d2515]">{m.name}</span>
                 <p className="text-xs text-[#7a6f5d]">Joined {new Date(m.joinedAt || Date.now()).toLocaleDateString()}</p>

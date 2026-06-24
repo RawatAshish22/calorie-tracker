@@ -868,6 +868,16 @@ function TrackerShell({
                 onRemove={onRemoveToday}
                 onOpenScan={() => setActiveTab('scan')}
                 onOpenHistory={() => setActiveTab('history')}
+                onItemClick={(item) => setModalResult({
+                  foodId: item.foodId,
+                  foodName: item.name,
+                  quantity: item.quantity,
+                  source: item.source || 'Logged food',
+                  nutrition: item.nutrition,
+                  baseNutrition: item.nutrition,
+                  baseQuantity: item.quantity,
+                  baseServingGrams: 0,
+                })}
               />
             ) : (
               <LogFood
@@ -2456,12 +2466,33 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
             <div className={`mt-4 rounded-[20px] border p-3 ${isElderly ? 'border-[#e8e4d9] bg-white' : 'border-white/10 bg-black/25'}`}>
               <h3 className={`text-sm font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Vitamins and minerals</h3>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                {vitamins.map(([key, value]) => (
-                  <div key={key} className={`flex justify-between gap-2 rounded-xl px-2 py-2 ${isElderly ? 'bg-[#f2efe4]' : 'bg-white/5'}`}>
-                    <span className={`capitalize ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className={isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}>{value}</span>
-                  </div>
-                ))}
+                {vitamins.map(([key, value]) => {
+                  const VITAMIN_LABELS = {
+                    calcium: 'Calcium',
+                    iron: 'Iron',
+                    vitaminA: 'Vitamin A',
+                    vitaminC: 'Vitamin C',
+                    vitaminD: 'Vitamin D',
+                    vitaminE: 'Vitamin E',
+                    vitaminK: 'Vitamin K',
+                    vitaminB6: 'Vitamin B6',
+                    vitaminB12: 'Vitamin B12',
+                    potassium: 'Potassium',
+                    magnesium: 'Magnesium',
+                    phosphorus: 'Phosphorus',
+                    zinc: 'Zinc',
+                    selenium: 'Selenium',
+                    folate: 'Folate',
+                    niacin: 'Niacin',
+                  };
+                  const label = VITAMIN_LABELS[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+                  return (
+                    <div key={key} className={`flex justify-between gap-2 rounded-xl px-2 py-2 ${isElderly ? 'bg-[#f2efe4]' : 'bg-white/5'}`}>
+                      <span className={`${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{label}</span>
+                      <span className={`font-bold ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{value}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

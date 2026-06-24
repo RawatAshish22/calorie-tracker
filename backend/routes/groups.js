@@ -42,6 +42,7 @@ function sanitizeGroup(group, userId) {
     members: group.members.map((m) => ({
       id: m.userId,
       name: m.name,
+      profilePic: m.profilePic || '',
       joinedAt: m.joinedAt,
     })),
     isMember: group.members.some((m) => String(m.userId) === String(userId)),
@@ -50,6 +51,7 @@ function sanitizeGroup(group, userId) {
       id: a._id,
       userId: a.userId,
       userName: a.userName,
+      userProfilePic: a.userProfilePic || '',
       modeId: a.modeId,
       modeName: a.modeName,
       calories: a.calories,
@@ -88,7 +90,7 @@ router.post('/', async (req, res) => {
       code,
       inviteToken,
       createdBy: req.userId,
-      members: [{ userId: req.userId, name: user.name, joinedAt: new Date() }],
+      members: [{ userId: req.userId, name: user.name, profilePic: user.profilePic || '', joinedAt: new Date() }],
       activity: [],
     });
 
@@ -135,7 +137,7 @@ router.post('/join', async (req, res) => {
     }
 
     const user = await User.findById(req.userId).lean();
-    group.members.push({ userId: req.userId, name: user.name, joinedAt: new Date() });
+    group.members.push({ userId: req.userId, name: user.name, profilePic: user.profilePic || '', joinedAt: new Date() });
     await group.save();
 
     res.json({ group: sanitizeGroup(group, req.userId) });
@@ -154,7 +156,7 @@ router.post('/join-link/:token', async (req, res) => {
     const alreadyMember = group.members.some((m) => String(m.userId) === String(req.userId));
     if (!alreadyMember) {
       const user = await User.findById(req.userId).lean();
-      group.members.push({ userId: req.userId, name: user.name, joinedAt: new Date() });
+      group.members.push({ userId: req.userId, name: user.name, profilePic: user.profilePic || '', joinedAt: new Date() });
       await group.save();
     }
 
@@ -194,6 +196,7 @@ router.post('/:id/activity', async (req, res) => {
     group.activity.push({
       userId: req.userId,
       userName: member.name,
+      userProfilePic: member.profilePic || '',
       modeId,
       modeName,
       calories,
