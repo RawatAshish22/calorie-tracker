@@ -416,6 +416,7 @@ export default function App() {
   }, [toast]);
 
   const currentUser = state.users.find((user) => user.id === state.sessionUserId);
+  const isElderly = currentUser?.profile?.age >= 40;
   const todayItems = state.logs[todayKey()] || [];
   const todayTotals = useMemo(() => addTotals(todayItems), [todayItems]);
   const smartTip = useMemo(() => buildSmartTip(todayTotals, state.goals), [todayTotals, state.goals]);
