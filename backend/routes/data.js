@@ -121,16 +121,21 @@ logsRouter.post('/logs/:date/meals', async (req, res) => {
 
     if (!meal) return res.status(400).json({ error: 'Meal object is required' });
 
-    const log = await Log.findOneAndUpdate(
-      { userId: req.userId, date },
-      { $push: { items: meal } },
-      { new: true, upsert: true, runValidators: true }
-    );
+    // Use findOne + save instead of findOneAndUpdate+upsert
+    // to avoid Mongoose runValidators bug with $push on upsert
+    let log = await Log.findOne({ userId: req.userId, date });
+
+    if (!log) {
+      log = new Log({ userId: req.userId, date, items: [] });
+    }
+
+    log.items.push(meal);
+    await log.save();
 
     res.status(201).json({ date, items: log.items });
   } catch (err) {
-    console.error('Add meal error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Add meal error:', err.message || err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
@@ -147,8 +152,8 @@ logsRouter.delete('/logs/:date/meals/:mealId', async (req, res) => {
 
     res.json({ date, items: log.items });
   } catch (err) {
-    console.error('Delete meal error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Delete meal error:', err.message || err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
