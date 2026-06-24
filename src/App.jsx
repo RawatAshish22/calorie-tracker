@@ -567,6 +567,25 @@ export default function App() {
     });
   }
 
+  async function handleLogWalkMinutes(minutes) {
+    const weightKg = currentUser?.profile?.weightKg || 70;
+    const met = 3.8; // Walking MET
+    const calories = Math.round((met * 3.5 * weightKg * minutes) / 200);
+
+    const session = {
+      modeId: 'walk-run',
+      name: 'Walk',
+      calories: calories,
+      elapsedSeconds: minutes * 60,
+      speed: 4.8,
+      distanceKm: roundMetric((4.8 * minutes) / 60, 2),
+      summary: `${minutes} mins • Walk`,
+      completedAt: new Date().toISOString(),
+    };
+
+    await handleAddBurnSession(session);
+  }
+
   if (!hydrated || !introDone) {
     return <SplashScreen onDone={() => setIntroDone(true)} />;
   }
@@ -871,7 +890,17 @@ function TrackerShell({
                 goals={goals}
                 items={todayItems}
                 onStartWalk={() => setActiveTab('workout-burn')}
-                onLogWalk={() => setToast('Walk logged successfully!')}
+                onLogWalk={async () => {
+                  const res = window.prompt("How many minutes did you walk?");
+                  if (res !== null) {
+                    const mins = parseInt(res, 10);
+                    if (Number.isFinite(mins) && mins > 0) {
+                      await handleLogWalkMinutes(mins);
+                    } else if (res.trim() !== '') {
+                      setToast("Please enter a valid number of minutes.");
+                    }
+                  }
+                }}
               />
             ) : (
               <WorkoutBurn
@@ -1727,14 +1756,14 @@ function WorkoutBurn({ user, goals, totals, onComplete, isElderly }) {
         </div>
 
         <div className="mt-6">
-          <SpeedometerGauge value={progress} label={`${roundMetric(liveCalories, 0)}`} sublabel="kcal live" needle />
+          <SpeedometerGauge value={progress} label={`${roundMetric(liveCalories, 0)}`} sublabel="kcal live" needle isElderly={isElderly} />
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <HeroChip label="Time" value={formatDuration(elapsed)} />
-          <HeroChip label={isGpsMode ? 'Speed' : 'Mode'} value={speedLabel} />
-          <HeroChip label="Distance" value={`${roundMetric(distanceKm, 2)} km`} />
-          <HeroChip label="Left" value={`${roundMetric(remaining, 0)} kcal`} />
+          <HeroChip label="Time" value={formatDuration(elapsed)} isElderly={isElderly} />
+          <HeroChip label={isGpsMode ? 'Speed' : 'Mode'} value={speedLabel} isElderly={isElderly} />
+          <HeroChip label="Distance" value={`${roundMetric(distanceKm, 2)} km`} isElderly={isElderly} />
+          <HeroChip label="Left" value={`${roundMetric(remaining, 0)} kcal`} isElderly={isElderly} />
         </div>
         {isGpsMode && gpsActive && running && !isMoving && (
           <p className="mt-3 animate-pop rounded-2xl border border-sun/20 bg-sun/10 px-3 py-2 text-center text-xs font-bold text-sun">
@@ -1808,18 +1837,18 @@ function WorkoutBurn({ user, goals, totals, onComplete, isElderly }) {
         </div>
       </section>
 
-      <section className="rounded-[24px] border border-limeFresh/15 bg-limeFresh/10 p-4">
-        <div className="flex items-center gap-2 text-limeFresh">
+      <section className={`rounded-[24px] border p-4 ${isElderly ? 'border-[#e8e4d9] bg-white' : 'border-limeFresh/15 bg-limeFresh/10'}`}>
+        <div className={`flex items-center gap-2 ${isElderly ? 'text-[#c48227]' : 'text-limeFresh'}`}>
           <Flame size={18} />
-          <h3 className="text-sm font-bold uppercase tracking-wider text-white">Today burnout</h3>
+          <h3 className={`text-sm font-bold uppercase tracking-wider ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Today burnout</h3>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <MiniMetric label="Target" value={`${target} kcal`} />
-          <MiniMetric label="Burned" value={`${roundMetric(alreadyBurned, 0)} kcal`} />
-          <MiniMetric label="After" value={`${roundMetric(afterSessionBurned, 0)} kcal`} />
+          <MiniMetric label="Target" value={`${target} kcal`} isElderly={isElderly} />
+          <MiniMetric label="Burned" value={`${roundMetric(alreadyBurned, 0)} kcal`} isElderly={isElderly} />
+          <MiniMetric label="After" value={`${roundMetric(afterSessionBurned, 0)} kcal`} isElderly={isElderly} />
         </div>
         {lastSession && (
-          <p className="mt-3 animate-pop rounded-2xl border border-limeFresh/20 bg-black/20 p-3 text-sm text-zinc-200">
+          <p className={`mt-3 animate-pop rounded-2xl border p-3 text-sm ${isElderly ? 'border-[#e8e4d9] bg-white text-[#2d2515]' : 'border-limeFresh/20 bg-black/20 text-zinc-200'}`}>
             {lastSession.name} logged: {lastSession.calories} kcal burned. Remaining target dropped with today&apos;s totals.
           </p>
         )}
@@ -1828,7 +1857,7 @@ function WorkoutBurn({ user, goals, totals, onComplete, isElderly }) {
   );
 }
 
-function SpeedometerGauge({ value, label, sublabel, needle = false }) {
+function SpeedometerGauge({ value, label, sublabel, needle = false, isElderly }) {
   const progress = Math.max(0, Math.min(100, Number(value || 0)));
   const angle = -90 + (progress / 100) * 180;
   const dash = 283;
@@ -1836,7 +1865,7 @@ function SpeedometerGauge({ value, label, sublabel, needle = false }) {
   return (
     <div className="relative mx-auto aspect-[2/1] w-full max-w-[260px] overflow-hidden">
       <svg viewBox="0 0 220 120" className="h-full w-full">
-        <path d="M30 110 A80 80 0 0 1 190 110" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="18" strokeLinecap="round" />
+        <path d="M30 110 A80 80 0 0 1 190 110" fill="none" stroke={isElderly ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.08)"} strokeWidth="18" strokeLinecap="round" />
         <path
           d="M30 110 A80 80 0 0 1 190 110"
           fill="none"
@@ -1856,14 +1885,14 @@ function SpeedometerGauge({ value, label, sublabel, needle = false }) {
         </defs>
         {needle && (
           <g className="transition-transform duration-500" style={{ transformOrigin: '110px 110px', transform: `rotate(${angle}deg)` }}>
-            <line x1="110" y1="110" x2="110" y2="42" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
-            <circle cx="110" cy="110" r="7" fill="#b7f34a" />
+            <line x1="110" y1="110" x2="110" y2="42" stroke={isElderly ? "#2d2515" : "#ffffff"} strokeWidth="4" strokeLinecap="round" />
+            <circle cx="110" cy="110" r="7" fill={isElderly ? "#c48227" : "#b7f34a"} />
           </g>
         )}
       </svg>
       <div className="absolute inset-x-0 bottom-0 text-center">
-        <p className="text-3xl font-black text-white">{label}</p>
-        <p className="text-xs uppercase tracking-wider text-zinc-500">{sublabel}</p>
+        <p className={`text-3xl font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{label}</p>
+        <p className={`text-xs uppercase tracking-wider ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{sublabel}</p>
       </div>
     </div>
   );
@@ -3423,20 +3452,20 @@ function FoodShape({ visual }) {
   );
 }
 
-function HeroChip({ label, value }) {
+function HeroChip({ label, value, isElderly }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl bg-white/[0.03] py-3">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{label}</span>
-      <span className="mt-1 text-sm font-medium text-white">{value}</span>
+    <div className={`flex flex-col items-center justify-center rounded-2xl py-3 ${isElderly ? 'bg-[#f2efe4]' : 'bg-white/[0.03]'}`}>
+      <span className={`text-[10px] font-bold uppercase tracking-wider ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{label}</span>
+      <span className={`mt-1 text-sm font-medium ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{value}</span>
     </div>
   );
 }
 
-function MiniMetric({ label, value }) {
+function MiniMetric({ label, value, isElderly }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-2">
-      <p className="text-base font-black text-white">{value}</p>
-      <p className="text-[11px] text-zinc-500">{label}</p>
+    <div className={`rounded-xl border p-2 ${isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2]' : 'border-white/10 bg-white/5'}`}>
+      <p className={`text-base font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{value}</p>
+      <p className={`text-[11px] ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{label}</p>
     </div>
   );
 }

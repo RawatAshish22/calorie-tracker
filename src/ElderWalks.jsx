@@ -2,8 +2,8 @@ import React from 'react';
 import { Play, CheckCircle2 } from 'lucide-react';
 
 export default function ElderWalks({ goals, items, onStartWalk, onLogWalk }) {
-  const walkItems = items.filter(i => i.modeId === 'walk');
-  const minutesWalked = Math.round(walkItems.reduce((acc, curr) => acc + curr.elapsedSeconds, 0) / 60);
+  const walkItems = items.filter(i => i.type === 'exercise' && (i.foodId === 'walk-run' || i.exercise?.modeId === 'walk-run'));
+  const minutesWalked = Math.round(walkItems.reduce((acc, curr) => acc + (curr.exercise?.elapsedSeconds || 0), 0) / 60);
   const eaten = items.reduce((sum, item) => sum + (item.nutrition?.calories || 0), 0);
   const left = Math.max(0, goals.calories - eaten);
 
@@ -38,7 +38,7 @@ export default function ElderWalks({ goals, items, onStartWalk, onLogWalk }) {
         </div>
       </div>
 
-      <div className="rounded-[32px] bg-[#fcfaf2] p-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-sm border border-[#e8e4d9]">
         <div className="mb-2">
           <span className="text-4xl font-black text-[#2d2515]">{minutesWalked} minutes</span>
         </div>
