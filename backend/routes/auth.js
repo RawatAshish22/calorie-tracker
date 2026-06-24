@@ -148,5 +148,4 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-export { sanitizeUser };
 export default router;
