@@ -127,30 +127,28 @@ export default function ElderGroups({ user, userGroups, setUserGroups, onToast }
             ) : (
               <div className="space-y-3">
                 {(feed?.activity || []).map(item => (
-                  <div key={item._id} className="rounded-2xl border border-[#e8e4d9] bg-[#fcfaf2] border border-[#e8e4d9] p-4 transition-all hover:border-zinc-700">
+                  <div key={item._id} className="rounded-2xl border border-[#e8e4d9] bg-[#fcfaf2] p-4 transition-all hover:border-[#c48227]/30">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#c48227]/20 text-xs font-bold text-[#c48227]">
                           {item.userName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold">{item.userName}</span>
+                        <span className="font-semibold text-[#2d2515]">{item.userName}</span>
                       </div>
-                        <span className={`font-semibold ${isElderly ? 'text-[#2d2515]' : 'text-[#2d2515]'}`}>{item.userName}</span>
-                      </div>
-                      <span className={`text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-[#7a6f5d]'}`}>
+                      <span className="text-xs text-[#7a6f5d]">
                         {new Date(item.postedAt).toLocaleString(undefined, {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </span>
                     </div>
                     
-                    <div className={`flex items-center gap-4 rounded-xl ${isElderly ? 'bg-[#f2efe4]/50' : 'bg-[#f2efe4]/50'} p-3`}>
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isElderly ? 'bg-[#c48227]/10' : 'bg-[#c48227]/10'}`}>
-                        <Flame className={`h-5 w-5 ${isElderly ? 'text-[#c48227]' : 'text-[#c48227]'}`} />
+                    <div className="flex items-center gap-4 rounded-xl bg-[#f2efe4]/50 p-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#c48227]/10">
+                        <Flame className="h-5 w-5 text-[#c48227]" />
                       </div>
                       <div className="flex-1">
-                        <h4 className={`font-bold ${isElderly ? 'text-[#c48227]' : 'text-[#c48227]'}`}>{item.calories} kcal burned</h4>
-                        <p className={`text-sm ${isElderly ? 'text-[#7a6f5d]' : 'text-[#7a6f5d]'}`}>{item.modeName} • {item.summary}</p>
+                        <h4 className="font-bold text-[#c48227]">{item.calories} kcal burned</h4>
+                        <p className="text-sm text-[#7a6f5d]">{item.modeName} • {item.summary}</p>
                       </div>
                     </div>
                   </div>

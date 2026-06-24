@@ -70,6 +70,8 @@ import {
 } from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
 import Groups from './Groups.jsx';
+import ElderGroups from './ElderGroups.jsx';
+import ElderProfile from './ElderProfile.jsx';
 import ElderDashboard from './ElderDashboard.jsx';
 import ElderLogFood from './ElderLogFood.jsx';
 import ElderWalks from './ElderWalks.jsx';
@@ -814,10 +816,15 @@ function TrackerShell({
           {activeTab === 'log' && (
             isElderly ? (
               <ElderLogFood
-                items={todayItems}
-                onAddFood={(item) => {
-                  setModalResult(item);
-                }}
+                aiSettings={aiSettings}
+                goals={goals}
+                todayItems={todayItems}
+                todayTotals={todayTotals}
+                onResult={setModalResult}
+                onToast={setToast}
+                onRemove={onRemoveToday}
+                onOpenScan={() => setActiveTab('scan')}
+                onOpenHistory={() => setActiveTab('history')}
               />
             ) : (
               <LogFood
@@ -840,6 +847,7 @@ function TrackerShell({
               onResult={setModalResult}
               onToast={setToast}
               onBack={() => setActiveTab('log')}
+              isElderly={isElderly}
             />
           )}
 
@@ -2292,6 +2300,7 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
                 onMinus={() => changeServings(Number(servings) - 0.5)}
                 onPlus={() => changeServings(Number(servings) + 0.5)}
                 onChange={changeServings}
+                isElderly={isElderly}
               />
               <QuantityCounter
                 label="Weight"
@@ -2302,31 +2311,28 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
                 onMinus={() => changeGrams(Number(grams) - 10)}
                 onPlus={() => changeGrams(Number(grams) + 10)}
                 onChange={changeGrams}
+                isElderly={isElderly}
               />
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <NutritionStat label="Calories" value={adjusted.nutrition.calories} unit="kcal" tone={isElderly ? "text-[#c48227]" : "text-limeFresh"} />
-            {!isElderly && (
-              <>
-                <NutritionStat label="Protein" value={adjusted.nutrition.protein} unit="g" tone="text-mint" />
-                <NutritionStat label="Carbs" value={adjusted.nutrition.carbs} unit="g" tone="text-aqua" />
-                <NutritionStat label="Fat" value={adjusted.nutrition.fat} unit="g" tone="text-sun" />
-                <NutritionStat label="Fiber" value={adjusted.nutrition.fiber} unit="g" tone="text-berry" />
-                <NutritionStat label="Sodium" value={adjusted.nutrition.sodium} unit="mg" tone="text-zinc-200" />
-              </>
-            )}
+            <NutritionStat label="Calories" value={adjusted.nutrition.calories} unit="kcal" tone={isElderly ? "text-[#c48227]" : "text-limeFresh"} isElderly={isElderly} />
+            <NutritionStat label="Protein" value={adjusted.nutrition.protein} unit="g" tone={isElderly ? "text-[#2d2515]" : "text-mint"} isElderly={isElderly} />
+            <NutritionStat label="Carbs" value={adjusted.nutrition.carbs} unit="g" tone={isElderly ? "text-[#2d2515]" : "text-aqua"} isElderly={isElderly} />
+            <NutritionStat label="Fat" value={adjusted.nutrition.fat} unit="g" tone={isElderly ? "text-[#2d2515]" : "text-sun"} isElderly={isElderly} />
+            <NutritionStat label="Fiber" value={adjusted.nutrition.fiber} unit="g" tone={isElderly ? "text-[#2d2515]" : "text-berry"} isElderly={isElderly} />
+            <NutritionStat label="Sodium" value={adjusted.nutrition.sodium} unit="mg" tone={isElderly ? "text-[#2d2515]" : "text-zinc-200"} isElderly={isElderly} />
           </div>
 
           {vitamins.length > 0 && (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/25 p-3">
-              <h3 className="text-sm font-bold">Vitamins and minerals</h3>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-300">
+            <div className={`mt-4 rounded-[20px] border p-3 ${isElderly ? 'border-[#e8e4d9] bg-white' : 'border-white/10 bg-black/25'}`}>
+              <h3 className={`text-sm font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Vitamins and minerals</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 {vitamins.map(([key, value]) => (
-                  <div key={key} className="flex justify-between gap-2 rounded-xl bg-white/5 px-2 py-2">
-                    <span className="capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className="text-zinc-400">{value}</span>
+                  <div key={key} className={`flex justify-between gap-2 rounded-xl px-2 py-2 ${isElderly ? 'bg-[#f2efe4]' : 'bg-white/5'}`}>
+                    <span className={`capitalize ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{key.replace(/([A-Z])/g, ' $1')}</span>
+                    <span className={isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -2334,14 +2340,14 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
           )}
 
           <div className="mt-4">
-            <label className="mb-2 block text-sm text-zinc-400" htmlFor="meal-type">Meal</label>
+            <label className={`mb-2 block text-sm ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`} htmlFor="meal-type">Meal</label>
             <div id="meal-type" className="grid grid-cols-4 gap-2">
               {mealTypes.map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setMealType(type)}
-                  className={`rounded-xl border px-2 py-2 text-xs transition active:scale-95 ${mealType === type ? 'border-limeFresh bg-limeFresh text-ink' : 'border-white/10 bg-black/25 text-zinc-300'}`}
+                  className={`rounded-xl border px-2 py-2 text-xs transition active:scale-95 ${mealType === type ? (isElderly ? 'border-[#c48227] bg-[#c48227] text-white' : 'border-limeFresh bg-limeFresh text-ink') : (isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515]' : 'border-white/10 bg-black/25 text-zinc-300')}`}
                 >
                   {type}
                 </button>
@@ -2363,21 +2369,21 @@ function NutritionModal({ result, onClose, onAdd, isElderly }) {
   );
 }
 
-function QuantityCounter({ label, value, unit, active, disabled = false, onMinus, onPlus, onChange }) {
+function QuantityCounter({ label, value, unit, active, disabled = false, onMinus, onPlus, onChange, isElderly }) {
   return (
-    <div className={`rounded-xl border p-2 transition ${active ? 'border-limeFresh bg-white/[0.08]' : 'border-white/10 bg-white/5'} ${disabled ? 'opacity-45' : ''}`}>
-      <p className="mb-2 text-xs text-zinc-400">{label}</p>
+    <div className={`rounded-xl border p-2 transition ${active ? (isElderly ? 'border-[#c48227] bg-[#fcfaf2]' : 'border-limeFresh bg-white/[0.08]') : (isElderly ? 'border-[#e8e4d9] bg-white' : 'border-white/10 bg-white/5')} ${disabled ? 'opacity-45' : ''}`}>
+      <p className={`mb-2 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{label}</p>
       <div className="grid grid-cols-[32px_1fr_32px] items-center gap-1">
         <button
           type="button"
           onClick={onMinus}
           disabled={disabled}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/25 text-zinc-300 transition hover:text-limeFresh active:scale-95 disabled:cursor-not-allowed"
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition active:scale-95 disabled:cursor-not-allowed ${isElderly ? 'bg-[#f2efe4] text-[#2d2515] hover:text-[#c48227]' : 'bg-black/25 text-zinc-300 hover:text-limeFresh'}`}
           aria-label={`Decrease ${label}`}
         >
           <Minus size={16} />
         </button>
-        <label className="flex h-8 min-w-0 items-center justify-center rounded-lg bg-black/25 px-1">
+        <label className={`flex h-8 min-w-0 items-center justify-center rounded-lg px-1 ${isElderly ? 'bg-[#f2efe4]' : 'bg-black/25'}`}>
           <input
             type="number"
             min="0"
@@ -2385,16 +2391,16 @@ function QuantityCounter({ label, value, unit, active, disabled = false, onMinus
             value={value}
             disabled={disabled}
             onChange={(event) => onChange(Number(event.target.value))}
-            className="min-w-0 flex-1 bg-transparent text-center text-sm font-bold text-white outline-none disabled:cursor-not-allowed"
+            className={`min-w-0 flex-1 bg-transparent text-center text-sm font-bold outline-none disabled:cursor-not-allowed ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}
             aria-label={label}
           />
-          <span className="ml-1 text-xs text-zinc-500">{unit}</span>
+          <span className={`ml-1 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{unit}</span>
         </label>
         <button
           type="button"
           onClick={onPlus}
           disabled={disabled}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-black/25 text-zinc-300 transition hover:text-limeFresh active:scale-95 disabled:cursor-not-allowed"
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition active:scale-95 disabled:cursor-not-allowed ${isElderly ? 'bg-[#f2efe4] text-[#2d2515] hover:text-[#c48227]' : 'bg-black/25 text-zinc-300 hover:text-limeFresh'}`}
           aria-label={`Increase ${label}`}
         >
           <Plus size={16} />
@@ -2404,12 +2410,12 @@ function QuantityCounter({ label, value, unit, active, disabled = false, onMinus
   );
 }
 
-function NutritionStat({ label, value, unit, tone }) {
+function NutritionStat({ label, value, unit, tone, isElderly }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-      <p className="text-xs text-zinc-500">{label}</p>
+    <div className={`rounded-xl border p-3 ${isElderly ? 'border-[#e8e4d9] bg-white' : 'border-white/10 bg-black/25'}`}>
+      <p className={`text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{label}</p>
       <p className={`mt-1 text-lg font-black ${tone}`}>{roundMetric(value)}</p>
-      <p className="text-xs text-zinc-500">{unit}</p>
+      <p className={`text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{unit}</p>
     </div>
   );
 }
@@ -2831,7 +2837,7 @@ function AICoaching({ user, goals, aiSettings, onApplyGoals, onToast, messages, 
   );
 }
 
-function CameraScan({ aiSettings, onResult, onToast, onBack }) {
+function CameraScan({ aiSettings, onResult, onToast, onBack, isElderly }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -2980,31 +2986,31 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white active:scale-95 animate-rise"
+          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-95 animate-rise ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515] hover:bg-[#e8e4d9]' : 'border-white/10 bg-black/25 text-zinc-300 hover:text-white'}`}
         >
           <ChevronLeft size={18} />
           Back to Log
         </button>
       )}
-      <section className="hero-panel animate-rise rounded-[26px] border border-white/10 p-4">
+      <section className={`hero-panel animate-rise rounded-[26px] border p-4 ${isElderly ? 'bg-white border-[#e8e4d9] shadow-sm' : 'border-white/10'}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-limeFresh">
+          <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${isElderly ? 'bg-[#c48227]/10 border-[#e8e4d9] text-[#c48227]' : 'border-white/10 bg-black/25 text-limeFresh'}`}>
             <Camera size={26} />
           </div>
           <div>
-            <p className="text-sm text-limeFresh">Live nutrition scanner</p>
-            <h2 className="text-2xl font-black">Camera Scan</h2>
+            <p className={`text-sm ${isElderly ? 'text-[#c48227] font-bold' : 'text-limeFresh'}`}>Live nutrition scanner</p>
+            <h2 className={`text-2xl font-black ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Camera Scan</h2>
           </div>
         </div>
       </section>
 
-      <section className="glass-panel overflow-hidden rounded-[22px]">
+      <section className={`overflow-hidden rounded-[22px] ${isElderly ? 'bg-white border border-[#e8e4d9] shadow-sm' : 'glass-panel'}`}>
         <div className="relative aspect-[4/5] bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
           {!active && !uploadedImage && (
             <div className="absolute inset-0 grid place-items-center bg-black/70 px-8 text-center">
               <div>
-                <Camera className="mx-auto text-limeFresh" size={44} />
+                <Camera className={isElderly ? 'mx-auto text-[#c48227]' : 'mx-auto text-limeFresh'} size={44} />
                 <p className="mt-3 text-sm text-zinc-300">Open camera or upload a photo to scan food.</p>
                 {!hasCameraApi() && (
                   <p className="mt-3 rounded-xl border border-sun/25 bg-sun/10 px-3 py-2 text-xs leading-5 text-sun">
@@ -3019,8 +3025,8 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
           )}
           {isScanning && (
             <div className="absolute inset-0 pointer-events-none">
-              <div className="w-full h-full bg-limeFresh/10 animate-pulse mix-blend-overlay"></div>
-              <div className="absolute left-0 right-0 h-1 bg-limeFresh shadow-[0_0_15px_#FFB020] animate-[scan_2s_ease-in-out_infinite]"></div>
+              <div className="w-full h-full bg-[#c48227]/10 animate-pulse mix-blend-overlay"></div>
+              <div className="absolute left-0 right-0 h-1 bg-[#c48227] shadow-[0_0_15px_#c48227] animate-[scan_2s_ease-in-out_infinite]"></div>
             </div>
           )}
           {scanResult && (
@@ -3029,9 +3035,9 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
                 <X size={16} />
               </button>
               <p className="text-xs uppercase text-limeFresh">{scanResult.confidence} confidence</p>
-              <h3 className="mt-1 pr-6 text-lg font-black">{scanResult.foodName}</h3>
+              <h3 className="mt-1 pr-6 text-lg font-black text-white">{scanResult.foodName}</h3>
               <p className="text-sm text-zinc-300">{scanResult.quantity}</p>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-zinc-300">
                 <span>{scanResult.nutrition.calories} kcal</span>
                 <span>{scanResult.nutrition.protein}g protein</span>
                 <span>{scanResult.nutrition.carbs}g carbs</span>
@@ -3043,13 +3049,13 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
         <canvas ref={canvasRef} className="hidden" />
         <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
         <div className="grid grid-cols-4 gap-2 p-3">
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-11 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className={`flex h-11 flex-col items-center justify-center rounded-xl border transition active:scale-95 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515] hover:bg-[#e8e4d9]' : 'border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5'}`}>
             <Upload size={18} />
           </button>
-          <button type="button" onClick={toggleCamera} className="flex h-11 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5">
+          <button type="button" onClick={toggleCamera} className={`flex h-11 flex-col items-center justify-center rounded-xl border transition active:scale-95 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515] hover:bg-[#e8e4d9]' : 'border-white/10 bg-black/25 text-zinc-200 hover:bg-white/5'}`}>
             <RefreshCw size={18} />
           </button>
-          <button type="button" onClick={active ? stopCamera : startCamera} className="col-span-2 h-11 rounded-xl bg-limeFresh px-3 text-sm font-bold text-ink">
+          <button type="button" onClick={active ? stopCamera : startCamera} className={`col-span-2 h-11 rounded-xl px-3 text-sm font-bold transition active:scale-95 ${isElderly ? 'bg-[#c48227] text-white shadow' : 'bg-limeFresh text-ink'}`}>
             {active ? 'Stop Camera' : 'Start Camera'}
           </button>
         </div>
@@ -3059,19 +3065,19 @@ function CameraScan({ aiSettings, onResult, onToast, onBack }) {
               Discard Result
             </button>
           ) : uploadedImage ? (
-            <button type="button" onClick={clearScan} disabled={isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
+            <button type="button" onClick={clearScan} disabled={isScanning} className={`h-11 rounded-xl border px-3 text-sm font-bold disabled:opacity-50 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515]' : 'border-white/10 bg-black/25 text-zinc-200'}`}>
               Clear Image
             </button>
           ) : (
-            <button type="button" onClick={scanFrame} disabled={!active || isScanning} className="h-11 rounded-xl border border-white/10 bg-black/25 px-3 text-sm font-bold text-zinc-200 disabled:opacity-50">
+            <button type="button" onClick={scanFrame} disabled={!active || isScanning} className={`h-11 rounded-xl border px-3 text-sm font-bold disabled:opacity-50 ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515]' : 'border-white/10 bg-black/25 text-zinc-200'}`}>
               {isScanning ? 'Scanning...' : 'Capture Now'}
             </button>
           )}
-          <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className="h-11 rounded-xl border border-limeFresh px-3 text-sm font-bold text-limeFresh disabled:opacity-50 bg-limeFresh/10 hover:bg-limeFresh/20">
+          <button type="button" onClick={() => scanResult && onResult(scanResult)} disabled={!scanResult} className={`h-11 rounded-xl border px-3 text-sm font-bold disabled:opacity-50 ${isElderly ? 'bg-[#c48227] border-[#c48227] text-white' : 'border-limeFresh text-limeFresh bg-limeFresh/10 hover:bg-limeFresh/20'}`}>
             Log Result
           </button>
         </div>
-        <div className="border-t border-white/10 px-3 py-2 text-xs text-zinc-400">
+        <div className={`border-t px-3 py-2 text-xs ${isElderly ? 'border-[#e8e4d9] text-[#7a6f5d]' : 'border-white/10 text-zinc-500'}`}>
           {status}. Auto scan is throttled to protect AI credits.
         </div>
       </section>

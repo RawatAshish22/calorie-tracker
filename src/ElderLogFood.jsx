@@ -1,16 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Search, Check } from 'lucide-react';
+import { Mic, Search, Check, Camera, CalendarDays, Trash2, RefreshCw } from 'lucide-react';
 import { commonFoods } from './lib/foods.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
+import { roundMetric, goalProgress } from './lib/nutritionMath.js';
 
-export default function ElderLogFood({ items, onAddFood }) {
+export default function ElderLogFood({
+  aiSettings,
+  goals,
+  todayItems,
+  todayTotals,
+  onResult,
+  onToast,
+  onRemove,
+  onOpenScan,
+  onOpenHistory,
+}) {
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [recognition, setRecognition] = useState(null);
-
-  const eaten = items.reduce((sum, item) => sum + (item.nutrition?.calories || 0), 0);
+  const transcriptRef = useRef('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -19,174 +29,284 @@ export default function ElderLogFood({ items, onAddFood }) {
         const rec = new SpeechRecognition();
         rec.continuous = false;
         rec.interimResults = true;
-        rec.lang = 'hi-IN'; // Defaulting to Hindi/Indian accent English for better regional food recognition
-        
+        rec.lang = 'hi-IN'; // Indian accent English / Hindi
+
         rec.onresult = (event) => {
           let currentTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; i++) {
             currentTranscript += event.results[i][0].transcript;
           }
           setTranscript(currentTranscript);
+          transcriptRef.current = currentTranscript;
         };
 
         rec.onend = async () => {
           setIsListening(false);
-          setIsProcessing(true);
-          
-          if (currentTranscript.trim() !== '') {
+          const speechText = transcriptRef.current;
+          if (speechText.trim()) {
+            setIsProcessing(true);
             try {
-              const res = await lookupNutrition(currentTranscript);
+              const res = await lookupNutrition(speechText, aiSettings);
               if (res) {
-                // If it's a generic AI response, we mock parsing it to an array
-                setParsedItems([{
-                  id: Date.now().toString(),
-                  name: res.foodName,
-                  portion: res.quantity,
-                  calories: res.nutrition.calories,
-                  nutrition: res.nutrition,
-                  source: 'ai'
-                }]);
+                onResult(res);
+                if (res.source.includes('fallback') || res.confidence === 'low') {
+                  onToast('AI was unavailable, so an estimate was used');
+                }
               }
             } catch (err) {
               console.error(err);
+              onToast(err.message || 'AI processing failed');
+            } finally {
+              setIsProcessing(false);
             }
           }
-          setIsProcessing(false);
         };
 
         rec.onerror = (e) => {
           console.error("Speech recognition error", e.error);
           setIsListening(false);
+          onToast(`Microphone error: ${e.error}`);
         };
 
         setRecognition(rec);
       }
     }
-  }, []);
+  }, [aiSettings, onResult, onToast]);
 
   const toggleListen = () => {
     if (isListening) {
       recognition?.stop();
     } else {
       setTranscript('');
-      recognition?.start();
-      setIsListening(true);
+      transcriptRef.current = '';
+      try {
+        recognition?.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error(err);
+        onToast('Failed to start microphone');
+      }
     }
   };
 
-  const [parsedItems, setParsedItems] = useState([]);
+  const [isSearchingAI, setIsSearchingAI] = useState(false);
 
-  // Removed mock parsed items logic since we now call lookupNutrition
+  async function handleAISearch(e) {
+    e?.preventDefault();
+    const query = searchTerm.trim();
+    if (!query || isSearchingAI) return;
+    setIsSearchingAI(true);
+    try {
+      const res = await lookupNutrition(query, aiSettings);
+      if (res) {
+        onResult(res);
+        if (res.source.includes('fallback') || res.confidence === 'low') {
+          onToast('AI was unavailable, so an estimate was used');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      onToast(err.message || 'AI search failed');
+    } finally {
+      setIsSearchingAI(false);
+    }
+  }
 
-  const handleConfirmVoice = () => {
-    const totalCals = parsedItems.reduce((acc, item) => acc + item.calories, 0);
-    const mockItem = {
-      id: Date.now().toString(),
-      name: parsedItems.map(i => i.name).join(', '),
-      quantity: parsedItems.map(i => i.portion).join(', '),
-      nutrition: { 
-        calories: totalCals, 
-        protein: parsedItems.reduce((acc, i) => acc + (i.nutrition?.protein || 0), 0), 
-        carbs: parsedItems.reduce((acc, i) => acc + (i.nutrition?.carbs || 0), 0), 
-        fat: parsedItems.reduce((acc, i) => acc + (i.nutrition?.fat || 0), 0) 
-      },
-      source: 'voice',
-      createdAt: new Date().toISOString()
+  function handleSelectCommonFood(food) {
+    const nutrition = {
+      calories: Number(food.calories || 0),
+      protein: Number(food.protein || 0),
+      carbs: Number(food.carbs || 0),
+      fat: Number(food.fat || 0),
+      fiber: Number(food.fiber || 0),
+      sodium: Number(food.sodium || 0),
+      vitamins: {},
     };
-    onAddFood(mockItem);
-    setTranscript('');
-    setParsedItems([]);
-  };
+    onResult({
+      foodId: food.foodId || 'generic',
+      foodName: food.name,
+      quantity: food.portion,
+      source: 'Quick database',
+      nutrition,
+      baseNutrition: nutrition,
+      baseQuantity: food.portion,
+      baseServingGrams: food.servingGrams || 40,
+    });
+  }
+
+  const progress = goalProgress(todayTotals.calories, goals.calories);
 
   return (
-    <div className="flex flex-col gap-6 font-sans">
-      <div className="flex items-center gap-4 border-b border-[#e8e4d9] pb-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f2efe4]">
-          <Mic className="h-6 w-6 text-[#c48227]" />
+    <div className="space-y-6 bg-[#fcfaf2] text-[#2d2515] p-1 font-sans">
+      {/* Header Summary */}
+      <div className="flex items-center justify-between border-b border-[#e8e4d9] pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#c48227]/10 text-[#c48227]">
+            <Mic size={24} />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-[#2d2515]">Add Food</h2>
+            <p className="text-sm text-[#7a6f5d]">Speak or search what you ate</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-black text-[#2d2515]">Add food</h2>
-          <p className="text-[#7a6f5d]">{eaten} calories logged today</p>
+        <div className="text-right">
+          <p className="text-lg font-black text-[#c48227]">{roundMetric(todayTotals.calories, 0)} kcal</p>
+          <p className="text-xs text-[#7a6f5d]">eaten today</p>
         </div>
       </div>
 
-      <div className="rounded-[32px] bg-white p-6 shadow-sm border border-[#e8e4d9]">
+      {/* Voice Recorder Card */}
+      <section className="rounded-[32px] bg-white p-6 shadow-sm border border-[#e8e4d9]">
         <div className="flex flex-col items-center text-center">
           <button 
+            type="button"
             onClick={toggleListen}
-            className={`flex h-20 w-20 items-center justify-center rounded-full transition-all ${
-              isListening ? 'bg-red-500 animate-pulse text-white' : 'bg-[#c48227] text-white shadow-lg'
+            disabled={isProcessing}
+            className={`flex h-24 w-24 items-center justify-center rounded-full transition-all duration-300 active:scale-95 ${
+              isListening 
+                ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/30' 
+                : 'bg-[#c48227] text-white shadow-lg shadow-[#c48227]/30 hover:bg-[#a86e1e]'
             }`}
           >
-            <Mic className="h-10 w-10" />
+            {isProcessing ? (
+              <RefreshCw className="h-10 w-10 animate-spin" />
+            ) : (
+              <Mic className="h-12 w-12" />
+            )}
           </button>
           
-          <p className="mt-4 text-lg font-bold text-[#2d2515]">
-            {isListening ? 'Listening...' : isProcessing ? 'Processing with AI...' : 'Tap and speak what you ate'}
+          <h3 className="mt-4 text-lg font-black text-[#2d2515]">
+            {isListening ? 'Listening... Speak now' : isProcessing ? 'Processing with AI...' : 'Tap to speak what you ate'}
+          </h3>
+          <p className="mt-1 text-xs text-[#7a6f5d] max-w-[250px]">
+            Example: "I had two eggs, one banana, and a cup of tea for breakfast"
           </p>
           
           {transcript && (
-            <div className="mt-6 w-full rounded-2xl bg-[#f2efe4] p-4 text-left">
-              <p className="text-sm font-medium text-[#7a6f5d] mb-1 flex items-center gap-2">
-                <Mic className="h-4 w-4" /> You said:
+            <div className="mt-4 w-full rounded-2xl bg-[#f2efe4]/60 border border-[#e8e4d9] p-4 text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#7a6f5d] mb-1 flex items-center gap-1">
+                <Mic className="h-3 w-3 text-[#c48227]" /> You said:
               </p>
-              <p className="text-lg font-medium text-[#2d2515]">{transcript}</p>
-            </div>
-          )}
-
-          {parsedItems.length > 0 && !isListening && (
-            <div className="mt-4 w-full text-left">
-              <div className="mb-4 divide-y divide-[#e8e4d9]">
-                {parsedItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-2">
-                      <Check className="h-5 w-5 text-emerald-500" />
-                      <span className="font-bold text-[#2d2515]">{item.name} <span className="text-[#7a6f5d] font-normal">• {item.portion}</span></span>
-                    </div>
-                    <span className="font-medium text-[#7a6f5d]">{item.calories} kcal</span>
-                  </div>
-                ))}
-              </div>
-              
-              <button 
-                onClick={handleConfirmVoice}
-                className="w-full rounded-2xl bg-[#c48227] py-4 text-lg font-bold text-white shadow-lg flex items-center justify-center gap-2"
-              >
-                <Check className="h-5 w-5" /> Add to today's log • {parsedItems.reduce((a, b) => a + b.calories, 0)} kcal
-              </button>
+              <p className="text-base font-bold text-[#2d2515] italic">"{transcript}"</p>
             </div>
           )}
         </div>
+      </section>
+
+      {/* Camera Scan & History Quick Action Buttons */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={onOpenScan}
+          className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#c48227] text-base font-bold text-white shadow transition active:scale-95 hover:bg-[#a86e1e]"
+        >
+          <Camera size={20} />
+          Scan Food
+        </button>
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="flex h-14 items-center justify-center gap-3 rounded-2xl border border-[#e8e4d9] bg-white text-base font-bold text-[#2d2515] shadow-sm transition active:scale-95 hover:bg-[#f2efe4]"
+        >
+          <CalendarDays size={20} />
+          View History
+        </button>
       </div>
 
-      <div className="text-center text-[#7a6f5d] my-2">or type to search</div>
+      <div className="text-center text-[#7a6f5d] font-bold text-sm my-2">— OR SEARCH BY TEXT —</div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7a6f5d]" />
-        <input
-          type="text"
-          placeholder="Search foods"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-2xl border border-[#e8e4d9] bg-white p-4 pl-12 text-lg text-[#2d2515] outline-none focus:border-[#c48227]"
-        />
-      </div>
-      
-      {/* Mocking Indian Regional DB suggestions */}
-      <div className="flex flex-col gap-2">
-        {commonFoods.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 3).map((food, idx) => (
-          <div key={idx} className="flex items-center justify-between rounded-2xl bg-white p-4 border border-[#e8e4d9]">
-            <div>
-              <div className="font-bold text-[#2d2515]">{food.name}</div>
-              <div className="text-sm text-[#7a6f5d]">{food.portion}</div>
+      {/* Text Search Bar */}
+      <form onSubmit={handleAISearch} className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#7a6f5d]" />
+          <input
+            type="text"
+            placeholder="Type food (e.g. 2 Roti, Chicken Curry)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full h-14 rounded-2xl border border-[#e8e4d9] bg-white pl-12 pr-4 text-base text-[#2d2515] outline-none focus:border-[#c48227] shadow-sm font-semibold"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!searchTerm.trim() || isSearchingAI}
+          className="h-14 px-5 rounded-2xl bg-[#c48227] text-white font-bold flex items-center justify-center transition active:scale-95 disabled:opacity-50"
+        >
+          {isSearchingAI ? <RefreshCw className="h-5 w-5 animate-spin" /> : 'AI Search'}
+        </button>
+      </form>
+
+      {/* Quick Search Suggestions */}
+      {searchTerm && (
+        <div className="flex flex-col gap-2">
+          {commonFoods.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 4).map((food, idx) => (
+            <div key={idx} className="flex items-center justify-between rounded-2xl bg-white p-4 border border-[#e8e4d9] shadow-sm animate-pop">
+              <div>
+                <div className="font-bold text-[#2d2515] text-base">{food.name}</div>
+                <div className="text-sm text-[#7a6f5d]">{food.portion}</div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right font-black text-[#2d2515]">{food.calories} kcal</div>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCommonFood(food)}
+                  className="rounded-xl bg-[#c48227] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition active:scale-95 hover:bg-[#a86e1e]"
+                >
+                  Add
+                </button>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="font-bold text-[#2d2515]">{food.calories} kcal</div>
-              <button onClick={() => onAddFood({...food, id: Date.now().toString()})} className="text-sm font-bold text-[#c48227]">Add</button>
-            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Today's Tray / Daily Log summary */}
+      <section className="rounded-[26px] border border-[#e8e4d9] bg-white p-4 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check size={18} className="text-[#c48227]" />
+            <h3 className="text-base font-bold text-[#2d2515]">Today's Food Log</h3>
           </div>
-        ))}
-      </div>
+          <span className="text-xs text-[#7a6f5d] font-bold">{todayItems.filter(i => i.type !== 'exercise').length} items</span>
+        </div>
+
+        {/* Progress Bar */}
+        <div>
+          <div className="flex justify-between text-xs font-bold text-[#7a6f5d] mb-1">
+            <span>Progress</span>
+            <span>{roundMetric(todayTotals.calories, 0)} / {goals.calories} kcal</span>
+          </div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-[#f2efe4]">
+            <div className="h-full rounded-full bg-[#c48227] transition-all duration-700" style={{ width: `${Math.min(100, progress)}%` }} />
+          </div>
+        </div>
+
+        {/* Logged Items List */}
+        {todayItems.filter(i => i.type !== 'exercise').length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#e8e4d9] p-6 text-center text-sm text-[#7a6f5d]">
+            Nothing logged yet for today. Use the microphone or search to add food!
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {todayItems.filter(i => i.type !== 'exercise').map((item) => (
+              <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-[#fcfaf2] border border-[#e8e4d9] text-sm">
+                <div className="min-w-0">
+                  <p className="font-bold text-[#2d2515] truncate">{item.name}</p>
+                  <p className="text-xs text-[#7a6f5d]">{item.quantity} • {roundMetric(item.nutrition?.calories, 0)} kcal</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="p-2 rounded-lg text-[#7a6f5d] hover:bg-[#e8e4d9] hover:text-red-500 transition active:scale-95"
+                  aria-label={`Remove ${item.name}`}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
