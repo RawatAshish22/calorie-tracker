@@ -6,7 +6,7 @@ import { estimateNutrition, normalizeNutrition } from '../src/lib/nutritionMath.
 
 // New API Routers
 import authRouter from './routes/auth.js';
-import dataRouter from './routes/data.js';
+import { userRouter, logsRouter } from './routes/data.js';
 import groupsRouter from './routes/groups.js';
 
 dotenv.config({ path: new URL('.env', import.meta.url) });
@@ -197,9 +197,9 @@ app.post('/api/vision-nutrition', async (request, response) => {
 });
 
 // Mount Authenticated MongoDB Data Routes
-app.use('/api/user', dataRouter); // Profile, goals, ai-settings
+app.use('/api/user', userRouter);    // Profile, goals, ai-settings
 app.use('/api/groups', groupsRouter); // Social groups
-app.use('/api', dataRouter);      // Logs and meals
+app.use('/api', logsRouter);          // Logs and meals
 
 if (process.env.VERCEL !== '1') {
   app.listen(port, '0.0.0.0', () => {

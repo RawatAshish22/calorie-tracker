@@ -27,17 +27,38 @@ async function apiFetch(path, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  // 15-second timeout so we don't hang silently
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('Request timed out — check your connection');
+    throw new Error('Network error — server unreachable');
+  }
+  clearTimeout(timeoutId);
 
   // Session expired – clear stale token
   if (res.status === 401) {
     clearToken();
   }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Server returned invalid response (${res.status})`);
+  }
 
   if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
+    throw new Error(data?.error || `Request failed (${res.status})`);
   }
 
   return data;

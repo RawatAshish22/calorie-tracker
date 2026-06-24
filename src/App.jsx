@@ -396,7 +396,7 @@ export default function App() {
     try {
       await apiAddMeal(date, item);
     } catch (err) {
-      setToast('Saved locally — cloud sync failed');
+      setToast(`Saved locally — ${err.message || 'cloud sync failed'}`);
     }
   }
 

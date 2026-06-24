@@ -4,13 +4,12 @@ import Log from '../models/Log.js';
 import auth from '../middleware/auth.js';
 import { sanitizeUser } from './auth.js';
 
-const router = Router();
+// ─── User/Profile Router (mounted at /api/user) ───────────────────────────────
+export const userRouter = Router();
+userRouter.use(auth);
 
-// All routes require authentication
-router.use(auth);
-
-// ─── PUT /profile ────────────────────────────────────────────────────────────
-router.put('/profile', async (req, res) => {
+// ─── PUT /api/user/profile ────────────────────────────────────────────────────
+userRouter.put('/profile', async (req, res) => {
   try {
     const { profile, goals } = req.body;
 
@@ -32,13 +31,12 @@ router.put('/profile', async (req, res) => {
   }
 });
 
-// ─── PUT /goals ──────────────────────────────────────────────────────────────
-router.put('/goals', async (req, res) => {
+// ─── PUT /api/user/goals ──────────────────────────────────────────────────────
+userRouter.put('/goals', async (req, res) => {
   try {
     const { goals } = req.body;
     if (!goals) return res.status(400).json({ error: 'Goals object is required' });
 
-    // Merge incoming goals with existing ones
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -52,8 +50,8 @@ router.put('/goals', async (req, res) => {
   }
 });
 
-// ─── PUT /ai-settings ───────────────────────────────────────────────────────
-router.put('/ai-settings', async (req, res) => {
+// ─── PUT /api/user/ai-settings ───────────────────────────────────────────────
+userRouter.put('/ai-settings', async (req, res) => {
   try {
     const { settings } = req.body;
     if (!settings) return res.status(400).json({ error: 'Settings object is required' });
@@ -72,8 +70,12 @@ router.put('/ai-settings', async (req, res) => {
   }
 });
 
-// ─── GET /logs ───────────────────────────────────────────────────────────────
-router.get('/logs', async (req, res) => {
+// ─── Logs Router (mounted at /api) ────────────────────────────────────────────
+export const logsRouter = Router();
+logsRouter.use(auth);
+
+// ─── GET /api/logs ────────────────────────────────────────────────────────────
+logsRouter.get('/logs', async (req, res) => {
   try {
     const { from, to } = req.query;
     const filter = { userId: req.userId };
@@ -86,7 +88,6 @@ router.get('/logs', async (req, res) => {
 
     const docs = await Log.find(filter).sort({ date: 1 }).lean();
 
-    // Convert array of Log docs to a date-keyed object
     const logs = {};
     for (const doc of docs) {
       logs[doc.date] = doc.items;
@@ -99,8 +100,8 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// ─── GET /logs/:date ─────────────────────────────────────────────────────────
-router.get('/logs/:date', async (req, res) => {
+// ─── GET /api/logs/:date ──────────────────────────────────────────────────────
+logsRouter.get('/logs/:date', async (req, res) => {
   try {
     const { date } = req.params;
     const log = await Log.findOne({ userId: req.userId, date }).lean();
@@ -112,15 +113,14 @@ router.get('/logs/:date', async (req, res) => {
   }
 });
 
-// ─── POST /logs/:date/meals ─────────────────────────────────────────────────
-router.post('/logs/:date/meals', async (req, res) => {
+// ─── POST /api/logs/:date/meals ───────────────────────────────────────────────
+logsRouter.post('/logs/:date/meals', async (req, res) => {
   try {
     const { date } = req.params;
     const { meal } = req.body;
 
     if (!meal) return res.status(400).json({ error: 'Meal object is required' });
 
-    // Find existing log or create a new one, then push the meal
     const log = await Log.findOneAndUpdate(
       { userId: req.userId, date },
       { $push: { items: meal } },
@@ -134,15 +134,14 @@ router.post('/logs/:date/meals', async (req, res) => {
   }
 });
 
-// ─── DELETE /logs/:date/meals/:mealId ────────────────────────────────────────
-router.delete('/logs/:date/meals/:mealId', async (req, res) => {
+// ─── DELETE /api/logs/:date/meals/:mealId ─────────────────────────────────────
+logsRouter.delete('/logs/:date/meals/:mealId', async (req, res) => {
   try {
     const { date, mealId } = req.params;
 
     const log = await Log.findOne({ userId: req.userId, date });
     if (!log) return res.status(404).json({ error: 'Log not found' });
 
-    // Remove the meal with the matching id
     log.items = log.items.filter((item) => item.id !== mealId);
     await log.save();
 
@@ -153,4 +152,5 @@ router.delete('/logs/:date/meals/:mealId', async (req, res) => {
   }
 });
 
-export default router;
+// Keep default export for backward compat (unused after server.js update)
+export default logsRouter;
