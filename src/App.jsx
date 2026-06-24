@@ -890,6 +890,16 @@ function TrackerShell({
                 onRemove={onRemoveToday}
                 onOpenScan={() => setActiveTab('scan')}
                 onOpenHistory={() => setActiveTab('history')}
+                onItemClick={(item) => setModalResult({
+                  foodId: item.foodId,
+                  foodName: item.name,
+                  quantity: item.quantity,
+                  source: item.source || 'Logged food',
+                  nutrition: item.nutrition,
+                  baseNutrition: item.nutrition,
+                  baseQuantity: item.quantity,
+                  baseServingGrams: 0,
+                })}
               />
             )
           )}
@@ -2109,7 +2119,7 @@ function WaterTracker({ totals, goals, onLogWater }) {
   );
 }
 
-function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast, onRemove, onOpenScan, onOpenHistory }) {
+function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast, onRemove, onOpenScan, onOpenHistory, onItemClick }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -2168,7 +2178,7 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
           </button>
         </div>
         <div className="px-4 pb-4">
-          <TodayTray items={todayItems} goals={goals} totals={todayTotals} onRemove={onRemove} />
+          <TodayTray items={todayItems} goals={goals} totals={todayTotals} onRemove={onRemove} onItemClick={onItemClick} />
         </div>
       </section>
 
@@ -2205,7 +2215,7 @@ function LogFood({ aiSettings, goals, todayItems, todayTotals, onResult, onToast
   );
 }
 
-function TodayTray({ items, goals, totals, onRemove }) {
+function TodayTray({ items, goals, totals, onRemove, onItemClick }) {
   const progress = goalProgress(totals.calories, goals.calories);
 
   return (
@@ -2228,7 +2238,7 @@ function TodayTray({ items, goals, totals, onRemove }) {
       ) : (
         <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
           {items.map((item) => (
-            <CompactMealRow key={item.id} item={item} onRemove={onRemove} />
+            <CompactMealRow key={item.id} item={item} onRemove={onRemove} onItemClick={onItemClick} />
           ))}
         </div>
       )}
@@ -2236,17 +2246,23 @@ function TodayTray({ items, goals, totals, onRemove }) {
   );
 }
 
-function CompactMealRow({ item, onRemove }) {
+function CompactMealRow({ item, onRemove, onItemClick }) {
   if (item.type === 'exercise') return <CompactActivityRow item={item} onRemove={onRemove} />;
 
   return (
-    <div className="animate-pop grid grid-cols-[48px_1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2">
-      <FoodVisual foodId={item.foodId} size="sm" />
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-white">{item.name}</p>
-        <p className="truncate text-xs text-zinc-500">{item.quantity}</p>
-        <p className="mt-1 text-xs text-zinc-400">{roundMetric(item.nutrition.calories, 0)} kcal</p>
-      </div>
+    <div className="animate-pop flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 p-2">
+      <button
+        type="button"
+        onClick={() => onItemClick && onItemClick(item)}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80 transition"
+      >
+        <FoodVisual foodId={item.foodId} size="sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-white">{item.name}</p>
+          <p className="truncate text-xs text-zinc-500">{item.quantity}</p>
+          <p className="mt-1 text-xs text-zinc-400">{roundMetric(item.nutrition.calories, 0)} kcal</p>
+        </div>
+      </button>
       <button
         type="button"
         onClick={() => onRemove(item.id)}

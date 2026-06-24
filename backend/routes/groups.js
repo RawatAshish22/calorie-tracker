@@ -32,34 +32,72 @@ function generateCode() {
 }
 
 /** Sanitize a group for client response */
-function sanitizeGroup(group, userId) {
+async function sanitizeGroup(group, userId) {
+  // Extract all unique userIds from members and activity
+  const userIds = new Set();
+  if (group.members) {
+    group.members.forEach((m) => {
+      if (m.userId) userIds.add(String(m.userId));
+    });
+  }
+  if (group.activity) {
+    group.activity.forEach((a) => {
+      if (a.userId) userIds.add(String(a.userId));
+    });
+  }
+
+  // Batch fetch User docs
+  const users = await User.find(
+    { _id: { $in: Array.from(userIds) } },
+    { _id: 1, profilePic: 1, name: 1 }
+  ).lean();
+
+  const userMap = {};
+  users.forEach((u) => {
+    userMap[String(u._id)] = {
+      profilePic: u.profilePic || '',
+      name: u.name || '',
+    };
+  });
+
+  const sortedActivity = typeof group.recentActivity === 'function'
+    ? group.recentActivity()
+    : [...(group.activity || [])].sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt)).slice(0, 50);
+
   return {
     id: group._id,
     name: group.name,
     code: group.code,
     inviteToken: group.inviteToken,
     memberCount: group.members.length,
-    members: group.members.map((m) => ({
-      id: m.userId,
-      name: m.name,
-      profilePic: m.profilePic || '',
-      joinedAt: m.joinedAt,
-    })),
+    members: group.members.map((m) => {
+      const uInfo = userMap[String(m.userId)] || {};
+      return {
+        id: m.userId,
+        userId: m.userId,
+        name: uInfo.name || m.name,
+        profilePic: uInfo.profilePic !== undefined ? uInfo.profilePic : (m.profilePic || ''),
+        joinedAt: m.joinedAt,
+      };
+    }),
     isMember: group.members.some((m) => String(m.userId) === String(userId)),
     isCreator: String(group.createdBy) === String(userId),
-    activity: group.recentActivity().map((a) => ({
-      id: a._id,
-      userId: a.userId,
-      userName: a.userName,
-      userProfilePic: a.userProfilePic || '',
-      modeId: a.modeId,
-      modeName: a.modeName,
-      calories: a.calories,
-      elapsedSeconds: a.elapsedSeconds,
-      distanceKm: a.distanceKm,
-      summary: a.summary,
-      postedAt: a.postedAt,
-    })),
+    activity: sortedActivity.map((a) => {
+      const uInfo = userMap[String(a.userId)] || {};
+      return {
+        id: a._id,
+        userId: a.userId,
+        userName: uInfo.name || a.userName,
+        userProfilePic: uInfo.profilePic !== undefined ? uInfo.profilePic : (a.userProfilePic || ''),
+        modeId: a.modeId,
+        modeName: a.modeName,
+        calories: a.calories,
+        elapsedSeconds: a.elapsedSeconds,
+        distanceKm: a.distanceKm,
+        summary: a.summary,
+        postedAt: a.postedAt,
+      };
+    }),
     createdAt: group.createdAt,
   };
 }
@@ -94,7 +132,7 @@ router.post('/', async (req, res) => {
       activity: [],
     });
 
-    res.status(201).json({ group: sanitizeGroup(group, req.userId) });
+    res.status(201).json({ group: await sanitizeGroup(group, req.userId) });
   } catch (err) {
     console.error('Create group error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -109,12 +147,14 @@ router.get('/', async (req, res) => {
       .lean({ virtuals: false });
 
     // Manually attach recentActivity since lean() skips methods
+    const sanitizedGroups = await Promise.all(groups.map(async (g) => {
+      const sorted = [...(g.activity || [])].sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt)).slice(0, 50);
+      const fake = { ...g, recentActivity: () => sorted };
+      return await sanitizeGroup(fake, req.userId);
+    }));
+
     res.json({
-      groups: groups.map((g) => {
-        const sorted = [...(g.activity || [])].sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt)).slice(0, 50);
-        const fake = { ...g, recentActivity: () => sorted };
-        return sanitizeGroup(fake, req.userId);
-      }),
+      groups: sanitizedGroups,
     });
   } catch (err) {
     console.error('Get groups error:', err);
@@ -133,14 +173,14 @@ router.post('/join', async (req, res) => {
 
     const alreadyMember = group.members.some((m) => String(m.userId) === String(req.userId));
     if (alreadyMember) {
-      return res.json({ group: sanitizeGroup(group, req.userId), alreadyMember: true });
+      return res.json({ group: await sanitizeGroup(group, req.userId), alreadyMember: true });
     }
 
     const user = await User.findById(req.userId).lean();
     group.members.push({ userId: req.userId, name: user.name, profilePic: user.profilePic || '', joinedAt: new Date() });
     await group.save();
 
-    res.json({ group: sanitizeGroup(group, req.userId) });
+    res.json({ group: await sanitizeGroup(group, req.userId) });
   } catch (err) {
     console.error('Join group error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -160,7 +200,7 @@ router.post('/join-link/:token', async (req, res) => {
       await group.save();
     }
 
-    res.json({ group: sanitizeGroup(group, req.userId), alreadyMember });
+    res.json({ group: await sanitizeGroup(group, req.userId), alreadyMember });
   } catch (err) {
     console.error('Join via link error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -176,7 +216,7 @@ router.get('/:id', async (req, res) => {
     const isMember = group.members.some((m) => String(m.userId) === String(req.userId));
     if (!isMember) return res.status(403).json({ error: 'You are not a member of this group' });
 
-    res.json({ group: sanitizeGroup(group, req.userId) });
+    res.json({ group: await sanitizeGroup(group, req.userId) });
   } catch (err) {
     console.error('Get group feed error:', err);
     res.status(500).json({ error: 'Server error' });
