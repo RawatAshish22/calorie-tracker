@@ -257,7 +257,22 @@ function reducer(state, action) {
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTabState] = useState('dashboard');
+  const setActiveTab = (tab) => {
+    if (tab === activeTab) return;
+    
+    if (tab !== 'dashboard' && activeTab === 'dashboard') {
+      // Leaving dashboard -> push a single state
+      window.history.pushState({ isTab: true }, '');
+    } else if (tab === 'dashboard' && activeTab !== 'dashboard') {
+      // Clicking dashboard from another tab -> pop the state to avoid stack growth
+      window.history.back();
+      // The popstate listener will handle updating the state to dashboard
+      return;
+    }
+    
+    setActiveTabState(tab);
+  };
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [hydrated, setHydrated] = useState(false);
   const [introDone, setIntroDone] = useState(false);
@@ -318,6 +333,19 @@ export default function App() {
 
     return () => { mounted = false; };
   }, []);
+
+  // Hardware Back Button Interception
+  useEffect(() => {
+    const handlePopState = () => {
+      // If we pop state and we were on a sub-tab, go back to dashboard
+      // The history pointer is now naturally back at the root
+      if (activeTab !== 'dashboard') {
+        setActiveTabState('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -709,9 +737,43 @@ function TrackerShell({
   userGroups,
   setUserGroups,
 }) {
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const onTouchEndEvent = () => {
+    if (!touchStart || !touchEnd) return;
+    const distanceX = touchStart.x - touchEnd.x;
+    const distanceY = Math.abs(touchStart.y - touchEnd.y);
+    
+    if (Math.abs(distanceX) > distanceY && Math.abs(distanceX) > 60) {
+      const tabs = ['dashboard', 'log', 'burn', 'groups', 'profile'];
+      const currentIndex = tabs.indexOf(activeTab);
+      
+      if (distanceX > 0 && currentIndex < tabs.length - 1) {
+        setActiveTab(tabs[currentIndex + 1]);
+      } else if (distanceX < 0 && currentIndex > 0) {
+        setActiveTab(tabs[currentIndex - 1]);
+      }
+    }
+  };
+
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
-      <div className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]">
+      <div 
+        className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEndEvent}
+      >
         <AppHeader 
           user={currentUser} 
           activeTab={activeTab}
@@ -3385,11 +3447,12 @@ function BottomNav({ activeTab, setActiveTab }) {
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex h-12 flex-1 flex-col items-center justify-center gap-1 rounded-[20px] text-[10px] font-medium transition-all duration-300 active:scale-95 ${active ? 'bg-white/10 text-limeFresh scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex h-14 flex-1 flex-col items-center justify-center gap-1.5 rounded-[20px] text-[11px] font-bold transition-all duration-300 active:scale-95 ${active ? 'bg-white/10 text-limeFresh scale-105 shadow-inner' : 'text-zinc-400 hover:text-zinc-200'}`}
               aria-label={item.label}
+              onTouchStart={() => setActiveTab(item.id)}
             >
-              <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-              <span className={active ? 'block' : 'hidden'}>{item.label}</span>
+              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+              <span className="block">{item.label}</span>
             </button>
           );
         })}
