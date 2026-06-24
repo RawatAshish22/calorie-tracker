@@ -70,6 +70,9 @@ import {
 } from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
 import Groups from './Groups.jsx';
+import ElderDashboard from './ElderDashboard.jsx';
+import ElderLogFood from './ElderLogFood.jsx';
+import ElderWalks from './ElderWalks.jsx';
 import {
   addTotals,
   buildSmartTip,
@@ -766,10 +769,12 @@ function TrackerShell({
     }
   };
 
+  const isElderly = currentUser?.profile?.age >= 40;
+
   return (
-    <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5">
+    <div className={`mx-auto flex h-[100dvh] w-full max-w-md flex-col sm:p-5 ${isElderly ? 'bg-[#fcfaf2] text-[#2d2515]' : 'bg-black text-white'}`}>
       <div 
-        className="phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)]"
+        className={`phone-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden sm:h-[calc(100vh-2.5rem)] ${isElderly ? 'bg-[#fcfaf2]' : ''}`}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEndEvent}
@@ -779,34 +784,54 @@ function TrackerShell({
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onLogout={onLogout} 
+          isElderly={isElderly}
         />
-        <main key={activeTab} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4 animate-tab-in">
+        <main key={activeTab} className={`no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-32 pt-4 animate-tab-in ${isElderly ? 'bg-[#fcfaf2]' : ''}`}>
           {activeTab === 'dashboard' && (
-            <Dashboard
-              user={currentUser}
-              goals={goals}
-              items={todayItems}
-              totals={todayTotals}
-              smartTip={smartTip}
-              onRemove={onRemoveToday}
-              onLog={() => setActiveTab('log')}
-              onLogWater={onLogWater}
-              onBurn={() => setActiveTab('burn')}
-            />
+            isElderly ? (
+              <ElderDashboard
+                user={currentUser}
+                goals={goals}
+                items={todayItems}
+                onAddFood={() => setActiveTab('log')}
+                onWalks={() => setActiveTab('burn')}
+              />
+            ) : (
+              <Dashboard
+                user={currentUser}
+                goals={goals}
+                items={todayItems}
+                totals={todayTotals}
+                smartTip={smartTip}
+                onRemove={onRemoveToday}
+                onLog={() => setActiveTab('log')}
+                onLogWater={onLogWater}
+                onBurn={() => setActiveTab('burn')}
+              />
+            )
           )}
 
           {activeTab === 'log' && (
-            <LogFood
-              aiSettings={aiSettings}
-              goals={goals}
-              todayItems={todayItems}
-              todayTotals={todayTotals}
-              onResult={setModalResult}
-              onToast={setToast}
-              onRemove={onRemoveToday}
-              onOpenScan={() => setActiveTab('scan')}
-              onOpenHistory={() => setActiveTab('history')}
-            />
+            isElderly ? (
+              <ElderLogFood
+                items={todayItems}
+                onAddFood={(item) => {
+                  setModalResult(item);
+                }}
+              />
+            ) : (
+              <LogFood
+                aiSettings={aiSettings}
+                goals={goals}
+                todayItems={todayItems}
+                todayTotals={todayTotals}
+                onResult={setModalResult}
+                onToast={setToast}
+                onRemove={onRemoveToday}
+                onOpenScan={() => setActiveTab('scan')}
+                onOpenHistory={() => setActiveTab('history')}
+              />
+            )
           )}
 
           {activeTab === 'scan' && (
@@ -831,12 +856,21 @@ function TrackerShell({
           )}
 
           {activeTab === 'burn' && (
-            <WorkoutBurn
-              user={currentUser}
-              goals={goals}
-              totals={todayTotals}
-              onComplete={onAddBurnSession}
-            />
+            isElderly ? (
+              <ElderWalks
+                goals={goals}
+                items={todayItems}
+                onStartWalk={() => setToast('Walk tracking started!')}
+                onLogWalk={() => setToast('Walk logged successfully!')}
+              />
+            ) : (
+              <WorkoutBurn
+                user={currentUser}
+                goals={goals}
+                totals={todayTotals}
+                onComplete={onAddBurnSession}
+              />
+            )
           )}
 
           {activeTab === 'groups' && (
@@ -874,7 +908,7 @@ function TrackerShell({
             />
           )}
         </main>
-        <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+        <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} isElderly={isElderly} />
       </div>
     </div>
   );
@@ -1189,12 +1223,45 @@ function ProfileSetup({ user, onComplete, onLogout }) {
   );
 }
 
-function AppHeader({ user, activeTab, setActiveTab, onLogout }) {
+function AppHeader({ user, activeTab, setActiveTab, onLogout, isElderly }) {
+  const profilePic = user?.profilePic;
+
+  if (isElderly) {
+    return (
+      <header className="sticky top-0 z-20 bg-[#fcfaf2]/90 px-4 py-4 backdrop-blur-2xl border-b border-[#e8e4d9]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {profilePic ? (
+              <img src={profilePic} alt="Profile" className="h-10 w-10 rounded-full object-cover border-2 border-[#d7b861]" />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d7b861] text-white font-bold">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-xs font-bold uppercase tracking-widest text-[#8c7335]">Sistum Tracker</p>
+              <h1 className="truncate text-xl font-bold text-[#2d2515]">Hello, {user.name}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button className="rounded-full border border-[#d7b861] bg-white px-3 py-1 text-xs font-bold text-[#2d2515]">
+              EN | हिं
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-20 bg-ink/80 px-4 py-4 backdrop-blur-2xl">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <LogoMark size="sm" />
+          {profilePic ? (
+            <img src={profilePic} alt="Profile" className="h-10 w-10 rounded-full object-cover" />
+          ) : (
+            <LogoMark size="sm" />
+          )}
           <div className="min-w-0">
             <p className="truncate text-[10px] font-bold uppercase tracking-widest text-limeFresh">Sistum Tracker</p>
             <h1 className="truncate text-lg font-bold text-white">Hello, {user.name}</h1>
@@ -3434,12 +3501,21 @@ function GoalInput({ label, value, unit, onChange }) {
   );
 }
 
-function BottomNav({ activeTab, setActiveTab }) {
+function BottomNav({ activeTab, setActiveTab, isElderly }) {
   const navActiveTab = activeTab === 'scan' || activeTab === 'history' ? 'log' : activeTab;
+
+  const items = isElderly ? [
+    { id: 'dashboard', label: 'Today', icon: Home },
+    { id: 'log', label: 'Food', icon: Search },
+    { id: 'burn', label: 'Walks', icon: Footprints },
+    { id: 'groups', label: 'Family', icon: Users },
+    { id: 'profile', label: 'Profile', icon: User },
+  ] : navItems;
+
   return (
-    <nav className="absolute bottom-6 left-4 right-4 z-30 rounded-[32px] border border-white/5 bg-[#0a1411]/80 px-2 py-2 shadow-2xl backdrop-blur-2xl animate-rise">
+    <nav className={`absolute bottom-6 left-4 right-4 z-30 rounded-[32px] border px-2 py-2 shadow-2xl backdrop-blur-2xl animate-rise ${isElderly ? 'bg-[#f2efe4]/90 border-[#e8e4d9]' : 'border-white/5 bg-[#0a1411]/80'}`}>
       <div className="flex justify-between gap-1">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const active = navActiveTab === item.id;
           return (
@@ -3447,7 +3523,11 @@ function BottomNav({ activeTab, setActiveTab }) {
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex h-14 flex-1 flex-col items-center justify-center gap-1.5 rounded-[20px] text-[11px] font-bold transition-all duration-300 active:scale-95 ${active ? 'bg-white/10 text-limeFresh scale-105 shadow-inner' : 'text-zinc-400 hover:text-zinc-200'}`}
+              className={`flex h-14 flex-1 flex-col items-center justify-center gap-1.5 rounded-[20px] text-[11px] font-bold transition-all duration-300 active:scale-95 ${
+                active 
+                  ? (isElderly ? 'bg-white text-[#c48227] scale-105 shadow-sm' : 'bg-white/10 text-limeFresh scale-105 shadow-inner')
+                  : (isElderly ? 'text-[#7a6f5d] hover:text-[#2d2515]' : 'text-zinc-400 hover:text-zinc-200')
+              }`}
               aria-label={item.label}
               onTouchStart={() => setActiveTab(item.id)}
             >

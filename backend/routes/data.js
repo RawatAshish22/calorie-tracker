@@ -8,14 +8,65 @@ import { sanitizeUser } from './auth.js';
 export const userRouter = Router();
 userRouter.use(auth);
 
+function calculateTDEE(profile) {
+  if (!profile || !profile.weightKg || !profile.heightCm || !profile.age || !profile.gender) return null;
+  
+  // Mifflin-St Jeor Equation
+  let bmr = (10 * profile.weightKg) + (6.25 * profile.heightCm) - (5 * profile.age);
+  bmr += profile.gender === 'male' ? 5 : -161;
+
+  const activityMultipliers = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9,
+  };
+  
+  const multiplier = activityMultipliers[profile.activity] || 1.2;
+  let tdee = Math.round(bmr * multiplier);
+
+  // Goal adjustment
+  if (profile.goal === 'lose') tdee -= 500;
+  if (profile.goal === 'lose_fast') tdee -= 1000;
+  if (profile.goal === 'gain') tdee += 500;
+  if (profile.goal === 'gain_fast') tdee += 1000;
+
+  // Safety minimums
+  const minCalories = profile.gender === 'male' ? 1500 : 1200;
+  return Math.max(tdee, minCalories);
+}
+
 // ─── PUT /api/user/profile ────────────────────────────────────────────────────
 userRouter.put('/profile', async (req, res) => {
   try {
-    const { profile, goals } = req.body;
+    const { profile, goals, profilePic } = req.body;
 
     const update = {};
-    if (profile) update.profile = profile;
-    if (goals) update.goals = goals;
+    if (profilePic !== undefined) update.profilePic = profilePic;
+    
+    if (profile) {
+      update.profile = profile;
+      
+      // Auto-calculate macros if a full profile is provided
+      const newCalories = calculateTDEE(profile);
+      if (newCalories) {
+        update.goals = {
+          calories: newCalories,
+          protein: Math.round((newCalories * 0.3) / 4),
+          carbs: Math.round((newCalories * 0.4) / 4),
+          fat: Math.round((newCalories * 0.3) / 9),
+          fiber: 28,
+          sugar: 50,
+          sodium: 2300,
+        };
+      }
+    }
+    
+    // Explicit goals payload overrides auto-calculated ones
+    if (goals) {
+      update.goals = { ...update.goals, ...goals };
+    }
 
     const user = await User.findByIdAndUpdate(
       req.userId,

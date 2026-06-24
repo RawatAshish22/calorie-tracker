@@ -5,11 +5,12 @@ import authMiddleware, { generateToken } from '../middleware/auth.js';
 const router = Router();
 
 /** Strip sensitive fields before sending user data to the client. */
-function sanitizeUser(user) {
+export function sanitizeUser(user) {
   return {
     id: user._id,
     name: user.name,
     email: user.email,
+    profilePic: user.profilePic || '',
     profile: user.profile,
     goals: user.goals,
     aiSettings: user.aiSettings,

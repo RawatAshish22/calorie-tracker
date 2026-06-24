@@ -129,11 +129,11 @@ export function hasAuthToken() {
 
 // ── User / Profile API ─────────────────────────────────────────────
 
-/** Save user profile and goals together. */
-export async function apiSaveProfile(profile, goals) {
+/** Save user profile, goals, and optional profile picture. */
+export async function apiSaveProfile(profile, goals, profilePic) {
   const data = await apiFetch('/api/user/profile', {
     method: 'PUT',
-    body: JSON.stringify({ profile, goals }),
+    body: JSON.stringify({ profile, goals, profilePic }),
   });
   return data.user;
 }
