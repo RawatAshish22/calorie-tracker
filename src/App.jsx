@@ -651,6 +651,7 @@ export default function App() {
           result={modalResult}
           onClose={() => setModalResult(null)}
           onAdd={addResultToLog}
+          isElderly={isElderly}
         />
       )}
       {toast && <Toast message={toast} />}
