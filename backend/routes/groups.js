@@ -6,7 +6,24 @@ import authMiddleware from '../middleware/auth.js';
 
 const router = Router();
 
-// All group routes require authentication
+// ─── PUBLIC: GET /api/groups/preview-link/:token ─ Preview group info ───────
+// No auth needed — used to show the join prompt before login/join
+router.get('/preview-link/:token', async (req, res) => {
+  try {
+    const group = await Group.findOne({ inviteToken: req.params.token }).lean();
+    if (!group) return res.status(404).json({ error: 'Invite link is invalid or expired.' });
+    res.json({
+      name: group.name,
+      memberCount: group.members.length,
+      token: req.params.token,
+    });
+  } catch (err) {
+    console.error('Preview link error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// All group routes below require authentication
 router.use(authMiddleware);
 
 /** Generate a random 6-character uppercase alphanumeric group code */
@@ -128,8 +145,8 @@ router.post('/join', async (req, res) => {
   }
 });
 
-// ─── GET /api/groups/join-link/:token ── Join via invite link ──────────────
-router.get('/join-link/:token', async (req, res) => {
+// ─── POST /api/groups/join-link/:token ── Join via invite link ─────────────
+router.post('/join-link/:token', async (req, res) => {
   try {
     const group = await Group.findOne({ inviteToken: req.params.token });
     if (!group) return res.status(404).json({ error: 'Invite link is invalid or expired.' });
@@ -141,7 +158,7 @@ router.get('/join-link/:token', async (req, res) => {
       await group.save();
     }
 
-    res.json({ group: sanitizeGroup(group, req.userId) });
+    res.json({ group: sanitizeGroup(group, req.userId), alreadyMember });
   } catch (err) {
     console.error('Join via link error:', err);
     res.status(500).json({ error: 'Server error' });

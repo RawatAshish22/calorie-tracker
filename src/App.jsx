@@ -66,6 +66,7 @@ import {
   apiGetGroupFeed,
   apiPostGroupActivity,
   apiLeaveGroup,
+  apiPreviewGroupLink,
 } from './lib/api.js';
 import { lookupNutrition } from './lib/aiNutrition.js';
 import Groups from './Groups.jsx';
@@ -272,6 +273,8 @@ export default function App() {
     },
   ]);
   const [userGroups, setUserGroups] = useState([]);
+  const [inviteModal, setInviteModal] = useState(null); // { name, memberCount, token }
+  const [inviteJoining, setInviteJoining] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -300,9 +303,20 @@ export default function App() {
       if (mounted) setHydrated(true);
     }
     init();
-    return () => {
-      mounted = false;
-    };
+
+    // Check for ?invite=TOKEN in URL on app load
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get('invite');
+    if (inviteToken) {
+      // Remove from URL bar immediately (clean look)
+      window.history.replaceState({}, '', window.location.pathname);
+      // Fetch group preview (no auth needed)
+      apiPreviewGroupLink(inviteToken)
+        .then((preview) => setInviteModal(preview))
+        .catch(() => {}); // Silently ignore invalid tokens
+    }
+
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -580,6 +594,22 @@ export default function App() {
     );
   }
 
+  async function handleJoinByLink() {
+    if (!inviteModal) return;
+    setInviteJoining(true);
+    try {
+      const group = await apiJoinGroupByToken(inviteModal.token);
+      const alreadyIn = userGroups.some(g => g.id === group.id);
+      if (!alreadyIn) setUserGroups(prev => [...prev, group]);
+      setToast(`Joined "${group.name}" 🎉`);
+      setInviteModal(null);
+      setActiveTab('groups');
+    } catch (err) {
+      setToast(err.message || 'Failed to join group');
+    }
+    setInviteJoining(false);
+  }
+
   return (
     <div className="app-shell min-h-screen text-white">
       {content}
@@ -591,6 +621,50 @@ export default function App() {
         />
       )}
       {toast && <Toast message={toast} />}
+
+      {/* Invite Link Modal */}
+      {inviteModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
+          <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl animate-in zoom-in-95 fade-in">
+            {/* Top gradient banner */}
+            <div className="flex flex-col items-center gap-2 bg-gradient-to-br from-emerald-500/20 to-transparent px-6 pt-8 pb-5 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 mb-1">
+                <svg className="h-8 w-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Group Invite</p>
+              <h2 className="text-2xl font-black text-white">{inviteModal.name}</h2>
+              <p className="text-sm text-zinc-400">{inviteModal.memberCount} {inviteModal.memberCount === 1 ? 'member' : 'members'} already inside</p>
+            </div>
+
+            <div className="px-6 pb-6">
+              <p className="mb-5 text-center text-sm text-zinc-300">
+                You've been invited to join this group. Would you like to join?
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setInviteModal(null)}
+                  disabled={inviteJoining}
+                  className="rounded-2xl bg-zinc-800 py-3 font-bold text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-50"
+                >
+                  No, thanks
+                </button>
+                <button
+                  type="button"
+                  onClick={handleJoinByLink}
+                  disabled={inviteJoining}
+                  className="rounded-2xl bg-emerald-500 py-3 font-bold text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-50"
+                >
+                  {inviteJoining ? 'Joining...' : 'Yes, Join!'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm overflow-hidden rounded-[24px] border border-white/10 bg-ink p-6 shadow-2xl">

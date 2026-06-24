@@ -211,9 +211,19 @@ export async function apiJoinGroup(code) {
   return data.group;
 }
 
-/** Join a group via its invite link token. */
+/** Preview a group via its invite link (no auth needed). */
+export async function apiPreviewGroupLink(token) {
+  const res = await fetch(`${API_BASE_URL}/api/groups/preview-link/${token}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Invalid invite link');
+  return data; // { name, memberCount, token }
+}
+
+/** Join a group via its invite link token (requires auth). */
 export async function apiJoinGroupByToken(token) {
-  const data = await apiFetch(`/api/groups/join-link/${token}`);
+  const data = await apiFetch(`/api/groups/join-link/${token}`, {
+    method: 'POST',
+  });
   return data.group;
 }
 
