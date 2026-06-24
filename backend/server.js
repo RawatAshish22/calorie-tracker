@@ -198,8 +198,8 @@ app.post('/api/vision-nutrition', async (request, response) => {
 
 // Mount Authenticated MongoDB Data Routes
 app.use('/api/user', dataRouter); // Profile, goals, ai-settings
-app.use('/api', dataRouter);      // Logs and meals
 app.use('/api/groups', groupsRouter); // Social groups
+app.use('/api', dataRouter);      // Logs and meals
 
 if (process.env.VERCEL !== '1') {
   app.listen(port, '0.0.0.0', () => {

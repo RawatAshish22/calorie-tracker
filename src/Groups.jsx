@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { 
   Users, UserPlus, Plus, ChevronRight, ChevronLeft, Activity, 
-  Flame, Settings, Copy
+  Flame, Settings, Copy, LogOut, Link2
 } from 'lucide-react';
 import { 
   apiCreateGroup, apiJoinGroup, apiGetGroupFeed, apiLeaveGroup 
 } from './lib/api.js';
 
 export default function Groups({ user, userGroups, setUserGroups, onToast }) {
-  const [view, setView] = useState('list'); // 'list', 'create', 'join', 'detail'
+  const [view, setView] = useState('list'); // 'list', 'create', 'join', 'detail', 'group-settings'
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // Group Detail State
   const [feed, setFeed] = useState(null);
@@ -71,12 +72,12 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
 
   async function handleLeave() {
     if (!selectedGroup) return;
-    if (!confirm(`Are you sure you want to leave ${selectedGroup.name}?`)) return;
     try {
       await apiLeaveGroup(selectedGroup.id);
       setUserGroups(userGroups.filter(g => g.id !== selectedGroup.id));
       onToast(`Left ${selectedGroup.name}`);
       setView('list');
+      setShowLeaveConfirm(false);
     } catch (err) {
       onToast(err.message || 'Failed to leave group');
     }
@@ -103,7 +104,7 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
               <Copy className="h-3 w-3 text-emerald-400" />
             </div>
           </div>
-          <button onClick={handleLeave} className="rounded-full p-2 text-rose-400 hover:bg-zinc-800">
+          <button onClick={() => { setView('group-settings'); setShowLeaveConfirm(false); }} className="rounded-full p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">
             <Settings className="h-5 w-5" />
           </button>
         </div>
@@ -166,6 +167,79 @@ export default function Groups({ user, userGroups, setUserGroups, onToast }) {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'group-settings' && selectedGroup) {
+    return (
+      <div className="flex h-full flex-col bg-zinc-950 text-white animate-in slide-in-from-right-4">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-800 p-4">
+          <button onClick={() => setView('detail')} className="rounded-full p-2 hover:bg-zinc-800">
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <div className="text-center">
+            <h2 className="text-lg font-bold">Group Settings</h2>
+            <p className="text-xs text-zinc-400">{selectedGroup.name}</p>
+          </div>
+          <div className="w-10"></div> {/* Placeholder for flex centering */}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 p-4 space-y-4">
+          <button
+            onClick={() => {
+              const link = `${window.location.origin}?invite=${selectedGroup.inviteToken}`;
+              navigator.clipboard.writeText(link);
+              onToast('Invite link copied to clipboard!');
+            }}
+            className="flex w-full items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left transition-all hover:border-emerald-500/50 hover:bg-zinc-800"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+              <Link2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white">Copy Invite Link</h4>
+              <p className="text-sm text-zinc-400">Share with anyone to join instantly</p>
+            </div>
+          </button>
+
+          {!showLeaveConfirm ? (
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              className="flex w-full items-center gap-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-left transition-all hover:border-rose-500/50 hover:bg-rose-500/10"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400">
+                <LogOut className="h-6 w-6" />
+              </div>
+              <div>
+                <h4 className="font-bold text-rose-400">Leave Group</h4>
+                <p className="text-sm text-rose-500/70">Remove yourself from this group</p>
+              </div>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 text-center animate-in fade-in zoom-in-95">
+              <LogOut className="mx-auto mb-3 h-8 w-8 text-rose-400" />
+              <h4 className="mb-1 font-bold text-white">Leave {selectedGroup.name}?</h4>
+              <p className="mb-5 text-sm text-zinc-400">You will no longer see this group's activity or members.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  className="rounded-xl bg-zinc-800 py-2.5 font-bold text-white hover:bg-zinc-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLeave}
+                  className="rounded-xl bg-rose-500 py-2.5 font-bold text-white hover:bg-rose-600 transition"
+                >
+                  Yes, Leave
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

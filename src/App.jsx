@@ -350,6 +350,7 @@ export default function App() {
         type: 'createUser',
         user: { ...user, id: user._id || user.id },
       });
+      try { const groups = await apiGetGroups(); setUserGroups(groups); } catch {}
       setToast('Account created');
       return true;
     } catch (err) {
@@ -374,6 +375,7 @@ export default function App() {
           logs: mergedLogs,
         },
       });
+      try { const groups = await apiGetGroups(); setUserGroups(groups); } catch {}
       setToast(`Welcome back, ${user.name}`);
       return true;
     } catch (err) {
