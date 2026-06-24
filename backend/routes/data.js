@@ -130,6 +130,7 @@ logsRouter.post('/logs/:date/meals', async (req, res) => {
     }
 
     log.items.push(meal);
+    log.markModified('items'); // Required for Mongoose Mixed arrays
     await log.save();
 
     res.status(201).json({ date, items: log.items });
@@ -148,6 +149,7 @@ logsRouter.delete('/logs/:date/meals/:mealId', async (req, res) => {
     if (!log) return res.status(404).json({ error: 'Log not found' });
 
     log.items = log.items.filter((item) => item.id !== mealId);
+    log.markModified('items'); // Required for Mongoose Mixed arrays
     await log.save();
 
     res.json({ date, items: log.items });

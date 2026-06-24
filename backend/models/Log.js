@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+// Use strict: false on the items sub-schema so any meal shape is accepted.
+// We also avoid the Mongoose 'type' reserved keyword conflict by defining
+// items as an array of Mixed — meal data is user-generated and variable.
 const logSchema = new mongoose.Schema(
   {
     userId: {
@@ -10,32 +13,13 @@ const logSchema = new mongoose.Schema(
     },
     date: { type: String, required: true, index: true }, // 'YYYY-MM-DD'
 
-    items: [
-      {
-        id: String,
-        type: String,
-        mealType: String,
-        foodId: String,
-        name: String,
-        quantity: String,
-        nutrition: {
-          calories: Number,
-          protein: Number,
-          carbs: Number,
-          fat: Number,
-          fiber: Number,
-          sugar: Number,
-          sodium: Number,
-          water: Number,
-          burnedCalories: Number,
-          vitamins: mongoose.Schema.Types.Mixed,
-        },
-        exercise: mongoose.Schema.Types.Mixed,
-        source: String,
-        notes: String,
-        createdAt: String,
-      },
-    ],
+    // Use Mixed so any meal object shape works without Mongoose type-casting issues.
+    // The old { id: String, type: String, ... } schema hit Mongoose's reserved
+    // 'type' keyword bug, causing "Cast to string failed" on every $push.
+    items: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
   },
   { timestamps: true }
 );
