@@ -926,6 +926,7 @@ function TrackerShell({
               setSelectedDate={setSelectedDate}
               onRemove={onRemoveHistory}
               onBack={() => setActiveTab('log')}
+              isElderly={isElderly}
             />
           )}
 
@@ -2422,18 +2423,18 @@ function NutritionStat({ label, value, unit, tone, isElderly }) {
   );
 }
 
-function MealLog({ date, items, onRemove }) {
+function MealLog({ date, items, onRemove, isElderly }) {
   const sections = [...mealTypes, 'Water', 'Exercise'];
 
   return (
-    <section className="glass-panel rounded-[22px] p-4">
+    <section className={`rounded-[22px] p-4 ${isElderly ? 'bg-white border border-[#e8e4d9]' : 'glass-panel'}`}>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-bold">Daily log</h2>
-        <span className="text-xs text-zinc-400">{items.length} items</span>
+        <h2 className={`text-base font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Daily log</h2>
+        <span className={isElderly ? 'text-xs text-[#7a6f5d]' : 'text-xs text-zinc-400'}>{items.length} items</span>
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-zinc-400">
+        <div className={`rounded-xl border border-dashed px-4 py-8 text-center text-sm ${isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2] text-[#7a6f5d]' : 'border-white/10 bg-black/20 text-zinc-400'}`}>
           No meals logged for {formatDayLabel(date)}.
         </div>
       ) : (
@@ -2443,10 +2444,10 @@ function MealLog({ date, items, onRemove }) {
             if (mealItems.length === 0) return null;
             return (
               <div key={mealType}>
-                <h3 className="mb-2 text-sm font-bold text-zinc-300">{mealType}</h3>
+                <h3 className={`mb-2 text-sm font-bold ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-300'}`}>{mealType}</h3>
                 <div className="space-y-2">
                   {mealItems.map((item) => (
-                    <MealRow key={item.id} item={item} onRemove={onRemove} />
+                    <MealRow key={item.id} item={item} onRemove={onRemove} isElderly={isElderly} />
                   ))}
                 </div>
               </div>
@@ -2458,19 +2459,19 @@ function MealLog({ date, items, onRemove }) {
   );
 }
 
-function MealRow({ item, onRemove }) {
-  if (item.type === 'exercise') return <ActivityRow item={item} onRemove={onRemove} />;
+function MealRow({ item, onRemove, isElderly }) {
+  if (item.type === 'exercise') return <ActivityRow item={item} onRemove={onRemove} isElderly={isElderly} />;
 
   return (
-    <div className="animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3 transition hover:border-white/20">
+    <div className={`animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border p-3 transition ${isElderly ? 'border-[#e8e4d9] bg-[#fcfaf2] hover:border-[#c48227]' : 'border-white/10 bg-black/25 hover:border-white/20'}`}>
       <FoodVisual foodId={item.foodId} size="sm" />
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-bold text-white">{item.name}</p>
-          <span className="shrink-0 rounded-lg bg-white/[0.08] px-2 py-0.5 text-[11px] text-zinc-400">{item.source}</span>
+          <p className={`truncate text-sm font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{item.name}</p>
+          <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] ${isElderly ? 'bg-[#e8e4d9]/60 text-[#7a6f5d]' : 'bg-white/[0.08] text-zinc-400'}`}>{item.source}</span>
         </div>
-        <p className="mt-1 text-xs text-zinc-500">{item.quantity}</p>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
+        <p className={`mt-1 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-500'}`}>{item.quantity}</p>
+        <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>
           <span>{roundMetric(item.nutrition.calories, 0)} kcal</span>
           <span>{roundMetric(item.nutrition.protein)}g protein</span>
           <span>{roundMetric(item.nutrition.carbs)}g carbs</span>
@@ -2479,7 +2480,7 @@ function MealRow({ item, onRemove }) {
       <button
         type="button"
         onClick={() => onRemove(item.id)}
-        className="inline-flex h-9 items-center justify-center gap-1 rounded-xl border border-white/10 px-3 text-xs text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+        className={`inline-flex h-9 items-center justify-center gap-1 rounded-xl border px-3 text-xs transition active:scale-95 ${isElderly ? 'border-[#e8e4d9] bg-white text-[#7a6f5d] hover:border-red-500 hover:text-red-500' : 'border-white/10 bg-white/5 text-zinc-300 hover:border-berry hover:text-berry'}`}
         aria-label={`Remove ${item.name}`}
       >
         <Trash2 size={15} />
@@ -2489,23 +2490,23 @@ function MealRow({ item, onRemove }) {
   );
 }
 
-function ActivityRow({ item, onRemove }) {
+function ActivityRow({ item, onRemove, isElderly }) {
   const mode = exerciseModes.find((exercise) => exercise.id === item.foodId) || exerciseModes[4];
   const Icon = mode.icon;
 
   return (
-    <div className="animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border border-limeFresh/15 bg-limeFresh/10 p-3 transition hover:border-limeFresh/30">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black/25 text-limeFresh">
+    <div className={`animate-pop grid grid-cols-[56px_1fr_auto] items-center gap-3 rounded-xl border p-3 transition ${isElderly ? 'border-[#e8e4d9] bg-white hover:border-[#c48227]' : 'border-limeFresh/15 bg-limeFresh/10 hover:border-limeFresh/30'}`}>
+      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${isElderly ? 'bg-[#fcfaf2] text-[#c48227]' : 'bg-black/25 text-limeFresh'}`}>
         <Icon size={22} />
       </div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-bold text-white">{item.name}</p>
-          <span className="shrink-0 rounded-lg bg-limeFresh/15 px-2 py-0.5 text-[11px] text-limeFresh">Burn</span>
+          <p className={`truncate text-sm font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>{item.name}</p>
+          <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] ${isElderly ? 'bg-[#c48227]/10 text-[#c48227]' : 'bg-limeFresh/15 text-limeFresh'}`}>Burn</span>
         </div>
-        <p className="mt-1 text-xs text-zinc-400">{item.quantity}</p>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
-          <span className="text-limeFresh">{roundMetric(item.nutrition?.burnedCalories, 0)} kcal burned</span>
+        <p className={`mt-1 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>{item.quantity}</p>
+        <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>
+          <span className={isElderly ? 'text-[#c48227]' : 'text-limeFresh'}>{roundMetric(item.nutrition?.burnedCalories, 0)} kcal burned</span>
           {item.exercise?.elapsedSeconds ? <span>{formatDuration(item.exercise.elapsedSeconds)}</span> : null}
           {item.exercise?.speed ? <span>{roundMetric(item.exercise.speed, 1)} speed/intensity</span> : null}
         </div>
@@ -2513,7 +2514,7 @@ function ActivityRow({ item, onRemove }) {
       <button
         type="button"
         onClick={() => onRemove(item.id)}
-        className="inline-flex h-9 items-center justify-center gap-1 rounded-xl border border-white/10 px-3 text-xs text-zinc-300 transition hover:border-berry hover:text-berry active:scale-95"
+        className={`inline-flex h-9 items-center justify-center gap-1 rounded-xl border px-3 text-xs transition active:scale-95 ${isElderly ? 'border-[#e8e4d9] bg-white text-[#7a6f5d] hover:border-red-500 hover:text-red-500' : 'border-white/10 bg-white/5 text-zinc-300 hover:border-berry hover:text-berry'}`}
         aria-label={`Remove ${item.name}`}
       >
         <Trash2 size={15} />
@@ -2523,7 +2524,7 @@ function ActivityRow({ item, onRemove }) {
   );
 }
 
-function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack }) {
+function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack, isElderly }) {
   const dateKeys = useMemo(() => {
     const keys = Object.keys(logs).sort((a, b) => b.localeCompare(a));
     return keys.length ? keys : [todayKey()];
@@ -2544,30 +2545,30 @@ function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack 
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white active:scale-95 animate-rise"
+          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-95 animate-rise ${isElderly ? 'border-[#e8e4d9] bg-white text-[#2d2515] hover:bg-[#f2efe4]' : 'border-white/10 bg-black/25 text-zinc-300 hover:text-white'}`}
         >
           <ChevronLeft size={18} />
           Back to Log
         </button>
       )}
-      <section className="hero-panel animate-rise rounded-[26px] border border-white/10 p-4">
+      <section className={`hero-panel animate-rise rounded-[26px] border p-4 ${isElderly ? 'bg-white border-[#e8e4d9] text-[#2d2515]' : 'border-white/10 text-white'}`}>
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => moveDate(-1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-300"
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515]' : 'border-white/10 bg-black/25 text-zinc-300'}`}
             aria-label="Previous day"
           >
             <ChevronLeft size={20} />
           </button>
           <div className="text-center">
-            <p className="text-xs text-zinc-400">Selected day</p>
+            <p className={`text-xs ${isElderly ? 'text-[#7a6f5d]' : 'text-zinc-400'}`}>Selected day</p>
             <h2 className="text-lg font-black">{formatDayLabel(selectedDate)}</h2>
           </div>
           <button
             type="button"
             onClick={() => moveDate(1)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/25 text-zinc-300"
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${isElderly ? 'border-[#e8e4d9] bg-[#f2efe4] text-[#2d2515]' : 'border-white/10 bg-black/25 text-zinc-300'}`}
             aria-label="Next day"
           >
             <ChevronRight size={20} />
@@ -2575,21 +2576,21 @@ function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack 
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <NutritionStat label="Calories" value={totals.calories} unit={`/ ${goals.calories}`} tone="text-limeFresh" />
-          <NutritionStat label="Protein" value={totals.protein} unit={`/ ${goals.protein}g`} tone="text-mint" />
-          <NutritionStat label="Fat" value={totals.fat} unit={`/ ${goals.fat}g`} tone="text-sun" />
+          <NutritionStat label="Calories" value={totals.calories} unit={`/ ${goals.calories}`} tone={isElderly ? 'text-[#c48227]' : 'text-limeFresh'} isElderly={isElderly} />
+          <NutritionStat label="Protein" value={totals.protein} unit={`/ ${goals.protein}g`} tone={isElderly ? 'text-[#2d2515]' : 'text-mint'} isElderly={isElderly} />
+          <NutritionStat label="Fat" value={totals.fat} unit={`/ ${goals.fat}g`} tone={isElderly ? 'text-[#2d2515]' : 'text-sun'} isElderly={isElderly} />
         </div>
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-bold">Logged days</h2>
+        <h2 className={`mb-3 text-base font-bold ${isElderly ? 'text-[#2d2515]' : 'text-white'}`}>Logged days</h2>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {dateKeys.map((date) => (
             <button
               key={date}
               type="button"
               onClick={() => setSelectedDate(date)}
-              className={`shrink-0 rounded-xl border px-3 py-2 text-sm transition active:scale-95 ${selectedDate === date ? 'border-limeFresh bg-limeFresh text-ink' : 'border-white/10 bg-white/5 text-zinc-300'}`}
+              className={`shrink-0 rounded-xl border px-3 py-2 text-sm transition active:scale-95 ${selectedDate === date ? (isElderly ? 'border-[#c48227] bg-[#c48227] text-white shadow-sm' : 'border-limeFresh bg-limeFresh text-ink') : (isElderly ? 'border-[#e8e4d9] bg-white text-[#7a6f5d]' : 'border-white/10 bg-white/5 text-zinc-300')}`}
             >
               {formatDayLabel(date)}
             </button>
@@ -2597,7 +2598,7 @@ function History({ logs, goals, selectedDate, setSelectedDate, onRemove, onBack 
         </div>
       </section>
 
-      <MealLog date={selectedDate} items={items} onRemove={(id) => onRemove(selectedDate, id)} />
+      <MealLog date={selectedDate} items={items} onRemove={(id) => onRemove(selectedDate, id)} isElderly={isElderly} />
     </div>
   );
 }
