@@ -645,7 +645,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell min-h-screen text-white">
+    <div className="app-shell min-h-screen text-white" style={{ colorScheme: isElderly ? 'light' : 'dark' }}>
       {content}
       {modalResult && (
         <NutritionModal
