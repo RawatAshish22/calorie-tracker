@@ -151,6 +151,7 @@ async function mergeCloudLogs(existingLogs = {}) {
     const start = todayKey(startDate);
     const cloudLogs = await apiGetLogs(start, end);
     if (!cloudLogs || typeof cloudLogs !== 'object') return existingLogs;
+    // Cloud WINS: overwrite local for any date that exists in cloud
     return { ...existingLogs, ...cloudLogs };
   } catch {
     return existingLogs;
@@ -193,12 +194,17 @@ function reducer(state, action) {
       const users = Array.isArray(payload.users) ? payload.users : [];
       const sessionUserId = users.some((user) => user.id === payload.sessionUserId) ? payload.sessionUserId : null;
 
+      // If this is a cloud background sync, cloud data wins for logs too
+      const logs = payload.cloudSync
+        ? { ...state.logs, ...payload.logs }
+        : payload.logs || {};
+
       return {
-        goals: { ...defaultGoals, ...payload.goals },
-        aiSettings: { ...defaultAiSettings, ...payload.aiSettings },
-        logs: payload.logs || {},
-        users,
-        sessionUserId,
+        goals: { ...defaultGoals, ...state.goals, ...payload.goals },
+        aiSettings: { ...defaultAiSettings, ...state.aiSettings, ...payload.aiSettings },
+        logs,
+        users: users.length > 0 ? users : state.users,
+        sessionUserId: sessionUserId || state.sessionUserId,
       };
     }
     case 'createUser':
@@ -303,6 +309,58 @@ export default function App() {
     if (!hydrated) return;
     saveAppState(state).catch(() => setToast('Could not save changes locally.'));
   }, [hydrated, state]);
+
+  // ── Background sync: poll cloud every 30s and on tab-focus ─────────
+  useEffect(() => {
+    if (!hydrated) return;
+    // Only sync if we have a logged-in session
+    const hasSession = !!state.sessionUserId;
+    if (!hasSession) return;
+
+    async function syncFromCloud() {
+      try {
+        // Sync user profile + goals
+        const user = await apiGetMe();
+        if (!user) return;
+        // Sync logs (cloud wins)
+        const end = todayKey();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        const cloudLogs = await apiGetLogs(todayKey(startDate), end);
+        dispatch({
+          type: 'hydrate',
+          payload: {
+            cloudSync: true,   // ← tells reducer: cloud data wins
+            users: [{ ...user, id: user.id || user._id }],
+            sessionUserId: user.id || user._id,
+            goals: user.goals,
+            aiSettings: user.aiSettings,
+            logs: cloudLogs || {},
+          },
+        });
+        // Sync groups
+        try {
+          const groups = await apiGetGroups();
+          setUserGroups(groups);
+        } catch {}
+      } catch {}
+    }
+
+    // Poll every 30 seconds
+    const interval = window.setInterval(syncFromCloud, 30_000);
+
+    // Re-sync immediately when the user switches back to this tab
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') syncFromCloud();
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, state.sessionUserId]);
 
   useEffect(() => {
     if (!toast) return undefined;
