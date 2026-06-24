@@ -3264,10 +3264,6 @@ function ProfilePanel({ user, goals, aiSettings, onSaveGoals, onSaveAi, onSavePr
   function handlePicChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image too large. Please choose an image under 2MB.');
-      return;
-    }
     setPicUploading(true);
     const reader = new FileReader();
     reader.onloadend = () => {
